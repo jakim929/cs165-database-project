@@ -39,7 +39,7 @@ int main(void) {
   printf("50 million insertions took %f seconds\n", secs);
 
   failure = deallocate(ht);
-  assert(failure);
+  assert(!failure);
 
   return 0;
 }
