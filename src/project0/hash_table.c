@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #include "hash_table.h"
 
 // Initialize the components of a hashtable.
@@ -7,22 +8,32 @@
 // This method returns an error code, 0 for success and -1 otherwise (e.g., if the parameter passed to the method is not null, if malloc fails, etc).
 int allocate(hashtable** ht, int size) {
     *ht = (hashtable*) malloc(sizeof(hashtable));
-    (*ht)->size = size;
-    (*ht)->table = (struct node**) malloc(sizeof(struct node*) * size);
+    initialize_table(*ht, size);
+    return 0;
+}
+
+int initialize_table(hashtable* ht, int size) {
+    ht->expected_size = size;
+    ht->total_count = 0;
+    ht->slot_count = get_slot_count(size);
+    ht->slots = (struct node**) malloc(sizeof(struct node*) * ht->slot_count);
     return 0;
 }
 
 // This method inserts a key-value pair into the hash table.
 // It returns an error code, 0 for success and -1 otherwise (e.g., if malloc is called and fails).
 int put(hashtable* ht, keyType key, valType value) {
-    int hashed_index = get_node_location(ht, key);
-    struct node* curr = ht->table[hashed_index];
+    int hashed_index = get_slot_index(ht, key);
+    struct node* curr = ht->slots[hashed_index];
     struct node* new_node = malloc(sizeof(struct node));
     new_node->key = key;
     new_node->val = value;
     new_node->next = curr;
-
-    ht->table[hashed_index] = new_node;
+    ht->total_count++;
+    ht->slots[hashed_index] = new_node;
+    if (ht->total_count > ht->expected_size) {
+        reallocate(ht, ht->expected_size * 2);
+    }
     return 0;
 }
 
@@ -35,8 +46,8 @@ int put(hashtable* ht, keyType key, valType value) {
 // to get values that it missed during the first call.
 // This method returns an error code, 0 for success and -1 otherwise (e.g., if the hashtable is not allocated).
 int get(hashtable* ht, keyType key, valType *values, int num_values, int* num_results) {
-    int hashed_index = get_node_location(ht, key);
-    struct node* curr = (ht->table)[hashed_index];
+    int hashed_index = get_slot_index(ht, key);
+    struct node* curr = (ht->slots)[hashed_index];
     *num_results = 0;
     while(curr) {
         if (curr->key == key) {
@@ -56,13 +67,14 @@ int erase(hashtable* ht, keyType key) {
     if (!ht) {
         return -1;
     }
-    int hashed_index = get_node_location(ht, key);
-    struct node* curr_node = (ht->table)[hashed_index];
-    struct node** prev_node_addr = &((ht->table)[hashed_index]);
+    int hashed_index = get_slot_index(ht, key);
+    struct node* curr_node = (ht->slots)[hashed_index];
+    struct node** prev_node_addr = &((ht->slots)[hashed_index]);
     while(curr_node) {
         if (curr_node->key == key) {
             *prev_node_addr = curr_node->next;
             free(curr_node);
+            ht->total_count--;
         } else {
             *prev_node_addr = curr_node;
         }
@@ -75,21 +87,45 @@ int erase(hashtable* ht, keyType key) {
 // This method frees all memory occupied by the hash table.
 // It returns an error code, 0 for success and -1 otherwise.
 int deallocate(hashtable* ht) {
-    for (int i = 0; i < ht->size; i++) {
-        struct node* curr_node = (ht->table)[i];
+    deallocate_slots(ht->slots, ht->slot_count);
+    free(ht);
+    return 0;
+}
+
+int reallocate(hashtable* ht, int size) {
+    int prev_slot_count = ht->slot_count;
+    struct node** prev_slots = ht->slots;
+    initialize_table(ht, size);
+    for (int i = 0; i < prev_slot_count; i++) {
+        struct node* curr_node = prev_slots[i];
+        while(curr_node) {
+            put(ht, curr_node->key, curr_node->val);
+        }
+    }
+
+    deallocate_slots(prev_slots, prev_slot_count);
+    return 0;
+}
+
+int deallocate_slots(struct node** slots, int slot_count) {
+    for (int i = 0; i < slot_count; i++) {
+        struct node* curr_node = slots[i];
         while(curr_node) {
             struct node* temp = curr_node->next;
             free(curr_node);
             curr_node = temp;
         }
     }
-    free(ht->table);
-    free(ht);
+    free(slots);
     return 0;
 }
 
-int get_node_location(hashtable* ht, keyType key) {
-    return hash(key) % (ht->size);
+int get_slot_count(int size) {
+    return sqrt(size);
+}
+
+int get_slot_index(hashtable* ht, keyType key) {
+    return hash(key) % (ht->slot_count);
 }
 
 // https://gist.github.com/badboy/6267743

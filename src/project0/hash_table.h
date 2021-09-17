@@ -12,9 +12,10 @@ typedef struct node {
 
 typedef struct hashtable {
 // define the components of the hash table here (e.g. the array, bookkeeping for number of elements, etc)
-    struct node** table;
-    int size;
+    struct node** slots;
+    int expected_size;
     int total_count;
+    int slot_count;
 } hashtable;
 
 int allocate(hashtable** ht, int size);
@@ -22,7 +23,11 @@ int put(hashtable* ht, keyType key, valType value);
 int get(hashtable* ht, keyType key, valType *values, int num_values, int* num_results);
 int erase(hashtable* ht, keyType key);
 int deallocate(hashtable* ht);
+int reallocate(hashtable* ht, int size);
+int initialize_table(hashtable* ht, int size);
+int deallocate_slots(struct node** slots, int slot_count);
 int hash(keyType key);
-int get_node_location(hashtable* ht, keyType key);
+int get_slot_index(hashtable* ht, keyType key);
+int get_slot_count(int size);
 
 #endif
