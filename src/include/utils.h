@@ -7,6 +7,7 @@
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
+#include <stdbool.h>
 #include <stdarg.h>
 #include <stdio.h>
 
@@ -56,5 +57,9 @@ void log_err(const char *format, ...);
 //
 // Usage: log_info("Command received: %s", command_string);
 void log_info(const char *format, ...);
+
+bool check_directory_exists(const char* pathname);
+
+int maybe_create_directory(const char* pathname);
 
 #endif /* __UTILS_H__ */

@@ -29,9 +29,12 @@ SOFTWARE.
 #include <stdbool.h>
 #include <stdio.h>
 
+#define BASE_CATALOG_PATH "catalog"
+
 // Limits the size of a name in our database to 64 characters
 #define MAX_SIZE_NAME 64
 #define HANDLE_MAX_SIZE 64
+#define MAX_PATH_NAME_SIZE 256
 
 /**
  * EXTRA
@@ -53,6 +56,7 @@ struct Comparator;
 
 typedef struct Column {
     char name[MAX_SIZE_NAME]; 
+    char path[MAX_PATH_NAME_SIZE];
     int* data;
     // You will implement column indexes later. 
     void* index;
@@ -77,7 +81,9 @@ typedef struct Column {
 
 typedef struct Table {
     char name [MAX_SIZE_NAME];
+    char path [MAX_PATH_NAME_SIZE];
     Column *columns;
+    size_t columns_capacity;
     size_t col_count;
     size_t table_length;
 } Table;
@@ -92,7 +98,8 @@ typedef struct Table {
  **/
 
 typedef struct Db {
-    char name[MAX_SIZE_NAME]; 
+    char name[MAX_SIZE_NAME];
+    char path [MAX_PATH_NAME_SIZE];
     Table *tables;
     size_t tables_size;
     size_t tables_capacity;
@@ -194,6 +201,7 @@ typedef enum OperatorType {
     CREATE,
     INSERT,
     LOAD,
+    SHUTDOWN,
 } OperatorType;
 
 
@@ -267,11 +275,14 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *status
 
 Column* create_column(Table *table, char *name, bool sorted, Status *ret_status);
 
+Table* get_table_by_name(Db* db, const char* name);
+
+int free_db(Db* db);
+
 Status shutdown_server();
 
 char** execute_db_operator(DbOperator* query);
 void db_operator_free(DbOperator* query);
-
 
 #endif /* CS165_H */
 

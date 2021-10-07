@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include "utils.h"
 
 #define ANSI_COLOR_RED     "\x1b[31m"
@@ -125,4 +127,19 @@ void log_info(const char *format, ...) {
 #endif
 }
 
+bool check_directory_exists(const char* pathname) {
+    bool found = true;
+    struct stat* stat_result = malloc(sizeof(struct stat));
+	if (stat(pathname, stat_result) == -1) {
+		found = false;
+	}
+    free(stat_result);
+    return found;
+}
 
+int maybe_create_directory(const char* pathname) {
+    if (!check_directory_exists(pathname)) {
+        mkdir(pathname, 0700);
+    }
+    return 1;
+}

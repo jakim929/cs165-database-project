@@ -22,6 +22,9 @@ bin/*
 server
 client
 .deps
+main
+test
+benchmark
 
 #ide stuff
 tags
@@ -31,4 +34,6 @@ Tags
 # other
 r*hs # vtune output
 .deps # makefile temps
+.DS_Store
 
+.vscode

@@ -18,8 +18,10 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
+#include <dirent.h>
 
 #include "common.h"
 #include "parse.h"
@@ -54,18 +56,33 @@ char* execute_DbOperator(DbOperator* query) {
                 return "Failed";
             }
         }
-        else if(query->operator_fields.create_operator.create_type == _TABLE){
+        else if(query->operator_fields.create_operator.create_type == _TABLE) {
             Status create_status;
             create_table(query->operator_fields.create_operator.db, 
                 query->operator_fields.create_operator.name, 
                 query->operator_fields.create_operator.col_count, 
                 &create_status);
             if (create_status.code != OK) {
-                cs165_log(stdout, "adding a table failed.");
+                return "Failed";
+            }
+            return "165";
+        } else if(query->operator_fields.create_operator.create_type == _COLUMN) {
+            Status create_status;
+            create_column(query->operator_fields.create_operator.table, 
+                query->operator_fields.create_operator.name, 
+                false,
+                &create_status);
+            if (create_status.code != OK) {
                 return "Failed";
             }
             return "165";
         }
+    } else if(query && query->type == SHUTDOWN) {
+        Status shutdown_status = shutdown_server();
+        if (shutdown_status.code != OK) {
+            return "Failed";
+        }
+        return "Bye 165";
     }
     free(query);
     return "165";
@@ -185,6 +202,42 @@ int setup_server() {
 
     return server_socket;
 }
+
+// Initial work on loading data. TBD
+// int initialize_data() {
+//     const char base_dir[] = "catalog";
+//     maybe_create_directory(base_dir);
+    
+//     DIR* dir_stream;
+//     struct dirent* dir_entry;
+
+//     dir_stream = opendir(base_dir);
+//     if (dir_stream == NULL) {
+//         log_info("Cannot open directory '%s'\n", base_dir);
+//         return -1;
+//     }
+
+//     struct stat filestat;
+//     while ((dir_entry = readdir(dir_stream)) != NULL) {
+//         stat(dir_entry->d_name,&filestat);
+//         if( S_ISDIR(filestat.st_mode)) {
+//             log_info("directory [%d] [%s]\n", dir_entry->d_type, dir_entry->d_name);
+//         } else {
+//             log_info("non directory [%d] [%s]\n", dir_entry->d_type, dir_entry->d_name);
+//         }
+//     }
+
+//     return 1;
+// }
+
+
+Status shutdown_server() {
+    struct Status ret_status;
+    int rflag = free_db(current_db);
+    ret_status.code = rflag == 0 ? OK : ERROR;
+    return ret_status;
+}
+
 
 // Currently this main will setup the socket and accept a single client.
 // After handling the client, it will exit.
