@@ -44,6 +44,7 @@
 char* execute_DbOperator(DbOperator* query) {
     // there is a small memory leak here (when combined with other parts of your database.)
     // as practice with something like valgrind and to develop intuition on memory leaks, find and fix the memory leak. 
+    
     if(!query)
     {
         return "165";
@@ -77,7 +78,13 @@ char* execute_DbOperator(DbOperator* query) {
             }
             return "165";
         }
-    } else if(query && query->type == SHUTDOWN) {
+    }else if(query && query->type == INSERT) {
+        Status insert_status;
+        insert_row(query->operator_fields.insert_operator.table, query->operator_fields.insert_operator.values, &insert_status);
+        if (insert_status.code == OK) {
+            return "165";
+        }
+    }else if(query && query->type == SHUTDOWN) {
         Status shutdown_status = shutdown_server();
         if (shutdown_status.code != OK) {
             return "Failed";

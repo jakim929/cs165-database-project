@@ -10,10 +10,23 @@
 #include "utils.h"
 
 #define INITIAL_TABLES_SIZE 32
-#define INITIAL_COLUMN_CAPACITY 128
+#define INITIAL_COLUMN_CAPACITY 1024
 
 // In this class, there will always be only one active database at a time
 Db *current_db;
+
+void insert_row(Table *table, int* values, Status *ret_status) {
+	for (size_t i = 0; i < table->col_count; i++) {
+		struct Column col = table->columns[i];
+		col.data[table->table_length] = values[i];
+	}
+		for (size_t i = 0; i < table->col_count; i++) {
+		struct Column col = table->columns[i];
+	}
+	table->table_length++;
+	ret_status->code = OK;
+	return;
+}
 
 Column* create_column(Table *table, char *name, bool sorted, Status *ret_status) {
 	(void) sorted;
@@ -55,8 +68,6 @@ Column* create_column(Table *table, char *name, bool sorted, Status *ret_status)
 
 	new_column->data = (int*) mmap(0, (INITIAL_COLUMN_CAPACITY * sizeof(int)), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 	close(fd);
-
-	new_column->data[0] = 42;
 
 	ret_status->code = OK;
 	return new_column;
@@ -152,14 +163,4 @@ int free_db(Db* db) {
 	free(db);
 	current_db = NULL;
 	return 0;
-}
-
-// TODO: Low priority optimize with hash table
-Table* get_table_by_name(Db* db, const char* name) {
-	for (size_t i = 0; i < db->tables_size - db->tables_capacity; i++) {
-		if (strcmp(db->tables[i].name, name) == 0) {
-			return &(db->tables[i]);
-		}
-	}
-	return NULL;
 }

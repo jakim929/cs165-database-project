@@ -275,7 +275,7 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *status
 
 Column* create_column(Table *table, char *name, bool sorted, Status *ret_status);
 
-Table* get_table_by_name(Db* db, const char* name);
+void insert_row(Table *table, int* values, Status *ret_status);
 
 int free_db(Db* db);
 

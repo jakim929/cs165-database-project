@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "client_context.h"
 /* This is an example of a function you will need to
  * implement in your catalogue. It takes in a string (char *)
@@ -6,10 +8,22 @@
  * to implement the method is up to you.
  * 
  */
-Table* lookup_table(char *name) {
-	// void pattern for 'using' a variable to prevent compiler unused variable warning
-	(void) name;
 
+// TODO: LOW PRI: Maybe update with hashtable implementation
+Table* lookup_table(char *name) {
+	const char delimiter[2] = ".";
+    char* db_name = strtok(name, delimiter);
+    char* table_name = strtok(NULL, delimiter);
+
+	if (!current_db || strcmp(current_db->name, db_name) != 0) {
+		return NULL;
+	}
+
+	for (size_t i = 0; i < current_db->tables_size - current_db->tables_capacity; i++) {
+		if (strcmp(current_db->tables[i].name, table_name) == 0) {
+			return &(current_db->tables[i]);
+		}
+	}
 	return NULL;
 }
 

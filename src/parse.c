@@ -52,17 +52,7 @@ DbOperator* parse_create_col(char* create_arguments) {
     // replace the ')' with a null terminating character. 
     db_and_table_name[last_char] = '\0';
 
-    const char delimiter[2] = ".";
-    char* db_name = strtok(db_and_table_name, delimiter);
-    char* table_name = strtok(NULL, delimiter);
-
-    // check that the database argument is the current active database
-    if (!current_db || strcmp(current_db->name, db_name) != 0) {
-        cs165_log(stdout, "query unsupported. Bad db name");
-        return NULL; //QUERY_UNSUPPORTED
-    }
-
-    Table* selected_table = get_table_by_name(current_db, table_name);
+    Table* selected_table = lookup_table(db_and_table_name);
 
     if (!selected_table) {
         cs165_log(stdout, "query unsupported. Bad table name");
