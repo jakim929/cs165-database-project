@@ -29,6 +29,7 @@
 #include "message.h"
 #include "utils.h"
 #include "client_context.h"
+#include "catalog.h"
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
 
@@ -182,6 +183,9 @@ int setup_server() {
         log_err("L%d: Failed to create socket.\n", __LINE__);
         return -1;
     }
+
+    // current_db = unpersist_db("awesomebase");
+    // print_db_data(current_db);
 
     local.sun_family = AF_UNIX;
     strncpy(local.sun_path, SOCK_PATH, strlen(SOCK_PATH) + 1);

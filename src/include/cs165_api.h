@@ -36,6 +36,9 @@ SOFTWARE.
 #define HANDLE_MAX_SIZE 64
 #define MAX_PATH_NAME_SIZE 256
 
+#define INITIAL_TABLES_SIZE 32
+#define INITIAL_COLUMN_CAPACITY 1024
+
 /**
  * EXTRA
  * DataType
@@ -81,12 +84,21 @@ typedef struct Column {
 
 typedef struct Table {
     char name [MAX_SIZE_NAME];
-    char path [MAX_PATH_NAME_SIZE];
+    char base_directory [MAX_PATH_NAME_SIZE];
     Column *columns;
     size_t columns_capacity;
     size_t col_count;
     size_t table_length;
 } Table;
+
+typedef struct PersistedTableCatalog {
+    char name [MAX_SIZE_NAME];
+    char base_directory [MAX_PATH_NAME_SIZE];
+    size_t columns_capacity;
+    size_t col_count;
+    size_t table_length;
+    char column_names[MAX_SIZE_NAME * 256];
+} PersistedTableCatalog;
 
 /**
  * db
@@ -99,11 +111,19 @@ typedef struct Table {
 
 typedef struct Db {
     char name[MAX_SIZE_NAME];
-    char path [MAX_PATH_NAME_SIZE];
+    char base_directory [MAX_PATH_NAME_SIZE];
     Table *tables;
     size_t tables_size;
     size_t tables_capacity;
 } Db;
+
+typedef struct PersistedDbCatalog {
+    char name[MAX_SIZE_NAME];
+    char base_directory [MAX_PATH_NAME_SIZE];
+    size_t tables_size;
+    size_t tables_capacity;
+    char table_names[MAX_SIZE_NAME * 256];
+} PersistedDbCatalog;
 
 /**
  * Error codes used to indicate the outcome of an API call

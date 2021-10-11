@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "utils.h"
+#include "cs165_api.h"
 
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
@@ -142,4 +143,24 @@ int maybe_create_directory(const char* pathname) {
         mkdir(pathname, 0700);
     }
     return 1;
+}
+
+void print_db_data(Db* db) {
+    printf("Database: %s\n", db->name);
+    for(size_t i = 0; i < db->tables_size - db->tables_capacity; i++) {
+        print_tbl_data(&(db->tables[i]));
+    }
+}
+
+void print_tbl_data(Table* tbl) {
+    printf("    Table: %s\n", tbl->name);
+    for(size_t i = 0; i < tbl->col_count - tbl->columns_capacity; i++) {
+        print_col_data(&(tbl->columns[i]));
+    }
+}
+
+
+// TODO: Print first few elements in column
+void print_col_data(Column* col) {
+    printf("        Column: %s\n", col->name);
 }

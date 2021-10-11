@@ -7,10 +7,8 @@
 #include <errno.h>
 
 #include "cs165_api.h"
+#include "catalog.h"
 #include "utils.h"
-
-#define INITIAL_TABLES_SIZE 32
-#define INITIAL_COLUMN_CAPACITY 1024
 
 // In this class, there will always be only one active database at a time
 Db *current_db;
@@ -19,9 +17,6 @@ void insert_row(Table *table, int* values, Status *ret_status) {
 	for (size_t i = 0; i < table->col_count; i++) {
 		struct Column col = table->columns[i];
 		col.data[table->table_length] = values[i];
-	}
-		for (size_t i = 0; i < table->col_count; i++) {
-		struct Column col = table->columns[i];
 	}
 	table->table_length++;
 	ret_status->code = OK;
@@ -40,14 +35,14 @@ Column* create_column(Table *table, char *name, bool sorted, Status *ret_status)
 	table->columns_capacity--;
 
 	strncpy(new_column->name, name, MAX_SIZE_NAME);
-	snprintf(new_column->path, MAX_PATH_NAME_SIZE, "%s/%s.data", table->path, name);
+	snprintf(new_column->path, MAX_PATH_NAME_SIZE, "%s/%s.%s.data", table->base_directory, table->name, name);
 
 	int rflag = -1;
 	int fd = open(new_column->path, O_RDWR | O_CREAT, (mode_t)0600);
 
 	if(fd == -1) {
 		ret_status->code = ERROR;
-		return 0;
+		return NULL;
 	}
 
 	rflag = lseek(fd, (INITIAL_COLUMN_CAPACITY * sizeof(int)) - 1, SEEK_SET);
@@ -55,7 +50,7 @@ Column* create_column(Table *table, char *name, bool sorted, Status *ret_status)
 	if (rflag == -1) {
 		close(fd);
 		ret_status->code = ERROR;
-		return 0;
+		return NULL;
 	}
 
 	rflag = write(fd, "", 1);
@@ -63,7 +58,7 @@ Column* create_column(Table *table, char *name, bool sorted, Status *ret_status)
 	if (rflag == -1) {
 		close(fd);
 		ret_status->code = ERROR;
-		return 0;
+		return NULL;
 	}
 
 	new_column->data = (int*) mmap(0, (INITIAL_COLUMN_CAPACITY * sizeof(int)), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
@@ -88,13 +83,11 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
 	db->tables_capacity--;
 
 	strncpy(new_table->name, name, MAX_SIZE_NAME);
-
+	strncpy(new_table->base_directory, db->base_directory, MAX_PATH_NAME_SIZE);
 	new_table->col_count = num_columns;
 	new_table->columns = (Column*) malloc(sizeof(Column) * num_columns);
 	new_table->columns_capacity = num_columns;
 	new_table->table_length = 0;
-	snprintf(new_table->path, MAX_PATH_NAME_SIZE, "%s/%s", db->path, new_table->name);
-	maybe_create_directory(new_table->path);
 
 	ret_status->code=OK;
 	return new_table;
@@ -110,9 +103,9 @@ Status create_db(const char* db_name) {
 	new_db->tables_size = INITIAL_TABLES_SIZE;
 	new_db->tables_capacity = INITIAL_TABLES_SIZE;
 	new_db->tables = (Table*) malloc(sizeof(Table) * INITIAL_TABLES_SIZE);
-	snprintf(new_db->path, MAX_PATH_NAME_SIZE, "%s/%s", BASE_CATALOG_PATH, db_name);
+	snprintf(new_db->base_directory, MAX_PATH_NAME_SIZE, "%s/%s", BASE_CATALOG_PATH, db_name);
 	maybe_create_directory(BASE_CATALOG_PATH);
-	maybe_create_directory(new_db->path);
+	maybe_create_directory(new_db->base_directory);
 
 	current_db = new_db;
 	ret_status.code = OK;
@@ -138,6 +131,7 @@ int free_column(Column* column) {
 }
 
 int free_table(Table* table) {
+	persist_tbl_catalog(table);
     for (size_t i = 0; i < table->col_count; i++) {
         int rflag = free_column(&(table->columns[i]));
 		if (rflag == -1) {
@@ -153,6 +147,7 @@ int free_db(Db* db) {
 		return 0;
 	}
 
+	persist_db_catalog(db);
     for (size_t i = 0; i < db->tables_size - db->tables_capacity; i++) {
         int rflag = free_table(&(db->tables[i]));
 		if (rflag == -1) {

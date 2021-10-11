@@ -11,6 +11,8 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#include "cs165_api.h"
+
 /**
  * trims newline characters from a string (in place)
  **/
@@ -61,5 +63,11 @@ void log_info(const char *format, ...);
 bool check_directory_exists(const char* pathname);
 
 int maybe_create_directory(const char* pathname);
+
+void print_db_data(Db* db);
+
+void print_tbl_data(Table* tbl);
+
+void print_col_data(Column* col);
 
 #endif /* __UTILS_H__ */
