@@ -35,5 +35,6 @@ Tags
 r*hs # vtune output
 .deps # makefile temps
 .DS_Store
+catalog
 
 .vscode
