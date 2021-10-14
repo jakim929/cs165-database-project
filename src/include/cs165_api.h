@@ -221,6 +221,7 @@ typedef enum OperatorType {
     CREATE,
     INSERT,
     LOAD,
+    SELECT,
     SHUTDOWN,
 } OperatorType;
 

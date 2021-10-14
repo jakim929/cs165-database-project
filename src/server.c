@@ -184,9 +184,6 @@ int setup_server() {
         return -1;
     }
 
-    // current_db = unpersist_db("awesomebase");
-    // print_db_data(current_db);
-
     local.sun_family = AF_UNIX;
     strncpy(local.sun_path, SOCK_PATH, strlen(SOCK_PATH) + 1);
     unlink(local.sun_path);

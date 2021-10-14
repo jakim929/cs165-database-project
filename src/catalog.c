@@ -81,6 +81,7 @@ Db* unpersist_db(char* db_name) {
         return NULL;
     }
 
+	print_db_data(db);
     return db;
 }
 
