@@ -128,6 +128,16 @@ void log_info(const char *format, ...) {
 #endif
 }
 
+void parse_nullable_int(NullableInt* nullable_int, char* str) {
+    if (strncmp(str, "null", 4) == 0) {
+        nullable_int->is_null = true;
+        return;
+    }
+    nullable_int->is_null = false;
+    nullable_int->value = atoi(str);
+    return;
+}
+
 bool check_directory_exists(const char* pathname) {
     bool found = true;
     struct stat* stat_result = malloc(sizeof(struct stat));

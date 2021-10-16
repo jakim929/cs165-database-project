@@ -63,6 +63,7 @@ typedef struct Column {
     int* data;
     // You will implement column indexes later. 
     void* index;
+    size_t size;
     //struct ColumnIndex *index;
     //bool clustered;
 } Column;
@@ -261,12 +262,28 @@ typedef struct LoadOperator {
     char* file_name;
 } LoadOperator;
 /*
+ * necessary fields for select operator
+ */
+
+typedef struct NullableInt {
+    bool is_null;
+    int value;
+} NullableInt;
+
+typedef struct SelectOperator {
+    Table* table;
+    Column* column;
+    NullableInt range_start;
+    NullableInt range_end;
+} SelectOperator;
+/*
  * union type holding the fields of any operator
  */
 typedef union OperatorFields {
     CreateOperator create_operator;
     InsertOperator insert_operator;
     LoadOperator load_operator;
+    SelectOperator select_operator;
 } OperatorFields;
 /*
  * DbOperator holds the following fields:
@@ -297,6 +314,8 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *status
 Column* create_column(Table *table, char *name, bool sorted, Status *ret_status);
 
 void insert_row(Table *table, int* values, Status *ret_status);
+
+GeneralizedColumn* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status);
 
 int free_db(Db* db);
 

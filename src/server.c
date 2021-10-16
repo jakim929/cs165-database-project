@@ -85,6 +85,16 @@ char* execute_DbOperator(DbOperator* query) {
         if (insert_status.code == OK) {
             return "165";
         }
+    }else if(query && query->type == SELECT) {
+        Status select_status;
+        GeneralizedColumn* select_result = select_from_column(query->operator_fields.select_operator.column, &(query->operator_fields.select_operator.range_start), &(query->operator_fields.select_operator.range_end), &select_status);
+        int* payload = (int*) select_result->column_pointer.result->payload;
+        for(size_t i = 0; i < select_result->column_pointer.result->num_tuples; i++) {
+           printf("%d\n", payload[i]);
+        }
+        if (select_status.code == OK) {
+            return "165";
+        }
     }else if(query && query->type == SHUTDOWN) {
         Status shutdown_status = shutdown_server();
         if (shutdown_status.code != OK) {

@@ -236,6 +236,56 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
     }
 }
 
+DbOperator* parse_select(char* query_command, message* send_message) {
+    // check for leading '('
+    if (strncmp(query_command, "(", 1) == 0) {
+        query_command++;
+        char** command_index = &query_command;
+        // parse table input
+        char* column_name = next_token(command_index, &send_message->status);
+        char* range_start_value = next_token(command_index, &send_message->status);
+        char* range_end_value = next_token(command_index, &send_message->status);
+        int last_char = strlen(range_end_value) - 1;
+        if (last_char < 0 || range_end_value[last_char] != ')') {
+            return NULL;
+        }
+        // replace final ')' with null-termination character.
+        range_end_value[last_char] = '\0';
+
+        if (send_message->status == INCORRECT_FORMAT) {
+            return NULL;
+        }
+
+        Table* table = NULL;
+        Column* column = NULL;
+        lookup_table_and_column(&table, &column, column_name);
+        // lookup the table and column and make sure it exists. 
+        if (table == NULL || column == NULL) {
+            send_message->status = OBJECT_NOT_FOUND;
+            return NULL;
+        }
+
+        DbOperator* dbo = malloc(sizeof(DbOperator));
+        dbo->type = SELECT;
+        dbo->operator_fields.select_operator.table = table;
+        dbo->operator_fields.select_operator.column = column;
+
+        parse_nullable_int(&(dbo->operator_fields.select_operator.range_start), range_start_value);
+        parse_nullable_int(&(dbo->operator_fields.select_operator.range_end), range_end_value);
+
+        // check that range parameters make sense
+        if ((!dbo->operator_fields.select_operator.range_start.is_null && !dbo->operator_fields.select_operator.range_end.is_null && dbo->operator_fields.select_operator.range_end.value < dbo->operator_fields.select_operator.range_start.value)) {
+            send_message->status = INCORRECT_FORMAT;
+            free (dbo);
+            return NULL;
+        } 
+        return dbo;
+    } else {
+        send_message->status = UNKNOWN_COMMAND;
+        return NULL;
+    }
+}
+
 /**
  * parse_command takes as input the send_message from the client and then
  * parses it into the appropriate query. Stores into send_message the
@@ -289,7 +339,11 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else if (strncmp(query_command, "relational_insert", 17) == 0) {
         query_command += 17;
         dbo = parse_insert(query_command, send_message);
+    } else if (strncmp(query_command, "select", 6) == 0) {
+        query_command += 6;
+        dbo = parse_select(query_command, send_message);
     } else if (strncmp(query_command, "shutdown", 8) == 0) {
+        query_command += 8;
         dbo = malloc(sizeof(DbOperator));
         dbo->type = SHUTDOWN;
     } 

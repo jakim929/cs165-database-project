@@ -60,6 +60,8 @@ void log_err(const char *format, ...);
 // Usage: log_info("Command received: %s", command_string);
 void log_info(const char *format, ...);
 
+void parse_nullable_int(NullableInt* nullable_int, char* str);
+
 bool check_directory_exists(const char* pathname);
 
 int maybe_create_directory(const char* pathname);
