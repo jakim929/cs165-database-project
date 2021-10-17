@@ -2,6 +2,44 @@
 
 #include "catalog.h"
 #include "client_context.h"
+
+ClientContext* initialize_client_context() {
+	ClientContext* client_context = (ClientContext*) malloc(sizeof(ClientContext));
+	client_context->chandle_table = (GeneralizedColumnHandle*) malloc(INITIAL_CHANDLE_CAPACITY * sizeof(GeneralizedColumnHandle));
+	client_context->chandle_slots = INITIAL_CHANDLE_CAPACITY;
+	client_context->chandles_in_use = 0;
+	return client_context;
+}
+
+int add_generalized_column_to_client_context(ClientContext* client_context, GeneralizedColumn* gen_column, char* handle) {
+	if (client_context->chandle_slots == client_context->chandles_in_use) {
+		client_context->chandle_table = (GeneralizedColumnHandle*) realloc(client_context->chandle_table, 2 * client_context->chandle_slots * sizeof(GeneralizedColumnHandle));
+		client_context->chandle_slots *= 2;
+	}
+	GeneralizedColumnHandle gen_chandle = client_context->chandle_table[client_context->chandles_in_use++];
+	strcpy(gen_chandle.name, handle);
+	gen_chandle.generalized_column.column_type = gen_column->column_type;
+	gen_chandle.generalized_column.column_pointer = gen_column->column_pointer;
+	return 0;
+}
+
+int free_client_context(ClientContext* client_context) {
+	for(int i = 0; i < client_context->chandles_in_use; i++) {
+		free_generalized_column_handle(&(client_context->chandle_table[i]));
+	}
+	free(client_context);
+	return 0;
+}
+
+int free_generalized_column_handle(GeneralizedColumnHandle* gen_chandle) {
+	if (gen_chandle->generalized_column.column_type == RESULT) {
+		free(gen_chandle->generalized_column.column_pointer.result->payload);
+		free(gen_chandle->generalized_column.column_pointer.result);
+	}
+	free(gen_chandle);
+	return 0;
+}
+
 /* This is an example of a function you will need to
  * implement in your catalogue. It takes in a string (char *)
  * and outputs a pointer to a table object. Similar methods

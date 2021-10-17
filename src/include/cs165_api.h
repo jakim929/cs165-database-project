@@ -36,6 +36,8 @@ SOFTWARE.
 #define HANDLE_MAX_SIZE 64
 #define MAX_PATH_NAME_SIZE 256
 
+#define INITIAL_CHANDLE_CAPACITY 64
+
 #define INITIAL_TABLES_SIZE 32
 #define INITIAL_COLUMN_CAPACITY 1024
 
@@ -223,6 +225,7 @@ typedef enum OperatorType {
     INSERT,
     LOAD,
     SELECT,
+    PRINT,
     SHUTDOWN,
 } OperatorType;
 
@@ -276,6 +279,7 @@ typedef struct SelectOperator {
     NullableInt range_start;
     NullableInt range_end;
 } SelectOperator;
+
 /*
  * union type holding the fields of any operator
  */
@@ -297,6 +301,7 @@ typedef struct DbOperator {
     OperatorFields operator_fields;
     int client_fd;
     ClientContext* context;
+    char* handle;
 } DbOperator;
 
 extern Db *current_db;
@@ -315,8 +320,7 @@ Column* create_column(Table *table, char *name, bool sorted, Status *ret_status)
 
 void insert_row(Table *table, int* values, Status *ret_status);
 
-GeneralizedColumn* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status);
-
+Result* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status);
 int free_db(Db* db);
 
 Status shutdown_server();

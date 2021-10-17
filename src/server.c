@@ -87,11 +87,22 @@ char* execute_DbOperator(DbOperator* query) {
         }
     }else if(query && query->type == SELECT) {
         Status select_status;
-        GeneralizedColumn* select_result = select_from_column(query->operator_fields.select_operator.column, &(query->operator_fields.select_operator.range_start), &(query->operator_fields.select_operator.range_end), &select_status);
-        int* payload = (int*) select_result->column_pointer.result->payload;
-        for(size_t i = 0; i < select_result->column_pointer.result->num_tuples; i++) {
-           printf("%d\n", payload[i]);
+        Result* select_result = select_from_column(query->operator_fields.select_operator.column, &(query->operator_fields.select_operator.range_start), &(query->operator_fields.select_operator.range_end), &select_status);
+        struct GeneralizedColumn gen_column;
+        union GeneralizedColumnPointer gen_column_pointer;
+        if (query->handle != NULL) {
+            gen_column_pointer.result = select_result;
+            gen_column.column_pointer = gen_column_pointer;
+            gen_column.column_type = RESULT;
+            int rflag = add_generalized_column_to_client_context(query->context, &gen_column, query->handle);
+            if (rflag < 0) {
+                select_status.code = ERROR;
+            }
         }
+        // int* payload = (int*) select_result->column_pointer.result->payload;
+        // for(size_t i = 0; i < select_result->column_pointer.result->num_tuples; i++) {
+        //    printf("%d\n", payload[i]);
+        // }
         if (select_status.code == OK) {
             return "165";
         }
@@ -122,7 +133,7 @@ void handle_client(int client_socket) {
     message recv_message;
 
     // create the client context here
-    ClientContext* client_context = NULL;
+    ClientContext* client_context = initialize_client_context();
 
     // Continually receive messages from client and execute queries.
     // 1. Parse the command
@@ -174,6 +185,8 @@ void handle_client(int client_socket) {
 
     log_info("Connection closed at socket %d!\n", client_socket);
     close(client_socket);
+
+
 }
 
 /**

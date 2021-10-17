@@ -33,7 +33,7 @@ GeneralizedColumn* fetch(Column* val_vec, Result* posn_vec, Status* ret_status) 
 	return result_gen_column;
 }
 
-GeneralizedColumn* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status) {
+Result* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status) {
 	Result* result = (Result*) malloc(sizeof(Result));
 	int* posn_vec = (int*) malloc(sizeof(int) * (column->size));
 	for (size_t i = 0; i < column->size; i++) {
@@ -45,12 +45,8 @@ GeneralizedColumn* select_from_column(Column* column, NullableInt* range_start, 
 	result->data_type = INT;
 	result->payload = posn_vec;
 
-	GeneralizedColumn* result_gen_column = (GeneralizedColumn*) malloc(sizeof(GeneralizedColumn));
-	result_gen_column->column_type = RESULT;
-	result_gen_column->column_pointer.result = result;
-
 	select_status->code = OK;
-	return result_gen_column;
+	return result;
 }
 
 void insert_row(Table* table, int* values, Status *ret_status) {
