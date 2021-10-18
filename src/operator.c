@@ -76,7 +76,6 @@ char* execute_db_operator(DbOperator* query) {
                 return "";
             }
         }
-
         if (select_status.code == OK) {
             return "165";
         }
@@ -92,6 +91,38 @@ char* execute_db_operator(DbOperator* query) {
     }
     free_db_operator(query);
     return "165";
+}
+
+Result* fetch(Column* val_vec, Result* posn_vec, Status* ret_status) {
+	Result* result = (Result*) malloc(sizeof(Result));
+	int* res_vec = (int*) malloc(sizeof(int) * (posn_vec->num_tuples));
+	int* data_payload = (int*) posn_vec->payload;
+	for (size_t i = 0; i < posn_vec->num_tuples; i++) {
+		res_vec[i] = val_vec->data[data_payload[i]];
+	}
+
+	result->num_tuples = posn_vec->num_tuples;
+	result->data_type = INT;
+	result->payload = res_vec;
+	
+	ret_status->code = OK;
+	return result;
+}
+
+Result* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status) {
+	Result* result = (Result*) malloc(sizeof(Result));
+	int* posn_vec = (int*) malloc(sizeof(int) * (column->size));
+	for (size_t i = 0; i < column->size; i++) {
+		// TODO: Try splitting out this if statement?
+		if ((range_start->is_null || column->data[i] >= range_start->value) && (range_end->is_null || column->data[i] < range_end->value)) {
+			posn_vec[result->num_tuples++] = i;
+		}
+	}
+	result->data_type = INT;
+	result->payload = posn_vec;
+
+	select_status->code = OK;
+	return result;
 }
 
 size_t get_gcolumn_size(GeneralizedColumn* gcolumn) {

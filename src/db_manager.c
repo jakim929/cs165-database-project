@@ -13,42 +13,6 @@
 // In this class, there will always be only one active database at a time
 Db *current_db;
 
-GeneralizedColumn* fetch(Column* val_vec, Result* posn_vec, Status* ret_status) {
-	Result* result = (Result*) malloc(sizeof(Result));
-	int* res_vec = (int*) malloc(sizeof(int) * (posn_vec->num_tuples));
-	int* data_payload = (int*) posn_vec->payload;
-	for (size_t i = 0; i < posn_vec->num_tuples; i++) {
-		res_vec[i] = val_vec->data[data_payload[i]];
-	}
-
-	result->num_tuples = posn_vec->num_tuples;
-	result->data_type = INT;
-	result->payload = res_vec;
-
-	GeneralizedColumn* result_gen_column = (GeneralizedColumn*) malloc(sizeof(GeneralizedColumn));
-	result_gen_column->column_type = RESULT;
-	result_gen_column->column_pointer.result = result;
-	
-	ret_status->code = OK;
-	return result_gen_column;
-}
-
-Result* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status) {
-	Result* result = (Result*) malloc(sizeof(Result));
-	int* posn_vec = (int*) malloc(sizeof(int) * (column->size));
-	for (size_t i = 0; i < column->size; i++) {
-		// TODO: Try splitting out this if statement?
-		if ((range_start->is_null || column->data[i] >= range_start->value) && (range_end->is_null || column->data[i] < range_end->value)) {
-			posn_vec[result->num_tuples++] = i;
-		}
-	}
-	result->data_type = INT;
-	result->payload = posn_vec;
-
-	select_status->code = OK;
-	return result;
-}
-
 void insert_row(Table* table, int* values, Status *ret_status) {
 	for (size_t i = 0; i < table->col_count; i++) {
 		struct Column col = table->columns[i];

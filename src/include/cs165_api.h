@@ -331,6 +331,8 @@ void insert_row(Table *table, int* values, Status *ret_status);
 
 Result* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status);
 
+Result* fetch(Column* val_vec, Result* posn_vec, Status* ret_status);
+
 int free_db(Db* db);
 
 Status shutdown_server();

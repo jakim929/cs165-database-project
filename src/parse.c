@@ -290,11 +290,13 @@ DbOperator* parse_print(char* query_command, ClientContext* context, message* se
     char* token = NULL;
     // check for leading '('
     if (strncmp(query_command, "(", 1) == 0) {
-        int last_char = strlen(query_command) - 1;
-        query_command[last_char] = '\0';
-    
         query_command++;
         char** command_index = &query_command;
+        int last_char = strlen(query_command) - 1;
+        if (last_char < 0 || query_command[last_char] != ')') {
+            return NULL;
+        }
+        query_command[last_char] = '\0';
 
         DbOperator* dbo = malloc(sizeof(DbOperator));
         int allocated_columns_count = INITIAL_PRINT_OPERATOR_COLUMNS_CAPACITY;
