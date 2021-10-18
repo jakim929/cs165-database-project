@@ -295,24 +295,6 @@ DbOperator* parse_print(char* query_command, ClientContext* context, message* se
     
         query_command++;
         char** command_index = &query_command;
-        // parse table input
-        // char* table_name = next_token(command_index, &send_message->status);
-        // if (send_message->status == INCORRECT_FORMAT) {
-        //     return NULL;
-        // }
-        // // lookup the table and make sure it exists. 
-        // Table* insert_table = lookup_table(table_name);
-        // if (insert_table == NULL) {
-        //     send_message->status = OBJECT_NOT_FOUND;
-        //     return NULL;
-        // }
-        // // make insert operator. 
-        // DbOperator* dbo = malloc(sizeof(DbOperator));
-        // dbo->type = INSERT;
-        // dbo->operator_fields.insert_operator.table = insert_table;
-        // dbo->operator_fields.insert_operator.values = malloc(sizeof(int) * insert_table->col_count);
-        // parse inputs until we reach the end. Turn each given string into an integer. 
-
 
         DbOperator* dbo = malloc(sizeof(DbOperator));
         int allocated_columns_count = INITIAL_PRINT_OPERATOR_COLUMNS_CAPACITY;
