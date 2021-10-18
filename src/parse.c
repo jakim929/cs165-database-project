@@ -286,6 +286,52 @@ DbOperator* parse_select(char* query_command, message* send_message) {
     }
 }
 
+DbOperator* parse_fetch(char* query_command, ClientContext* context, message* send_message) {
+    // check for leading '('
+    if (strncmp(query_command, "(", 1) == 0) {
+        query_command++;
+        char** command_index = &query_command;
+        // parse table input
+        char* column_name = next_token(command_index, &send_message->status);
+        char* posn_vec_name = next_token(command_index, &send_message->status);
+        int last_char = strlen(posn_vec_name) - 1;
+        if (last_char < 0 || posn_vec_name[last_char] != ')') {
+            return NULL;
+        }
+        // replace final ')' with null-termination character.
+        posn_vec_name[last_char] = '\0';
+        if (send_message->status == INCORRECT_FORMAT) {
+            return NULL;
+        }
+
+        Table* table = NULL;
+        Column* column = NULL;
+        lookup_table_and_column(&table, &column, column_name);
+        GeneralizedColumn* posn_vec_gcolumn = lookup_gcolumn_by_handle(context, posn_vec_name);
+        // lookup the table and column and make sure it exists. posn_vec needs to be RESULT
+        if (
+            table == NULL ||
+            column == NULL ||
+            posn_vec_gcolumn == NULL ||
+            posn_vec_gcolumn->column_type != RESULT ||
+            posn_vec_gcolumn->column_pointer.result->data_type != INT
+        ) {
+            send_message->status = OBJECT_NOT_FOUND;
+            return NULL;
+        }
+
+        DbOperator* dbo = malloc(sizeof(DbOperator));
+        dbo->type = FETCH;
+        dbo->operator_fields.fetch_operator.column = column;
+        dbo->operator_fields.fetch_operator.posn_vec = posn_vec_gcolumn->column_pointer.result;
+    
+        return dbo;
+    } else {
+        send_message->status = UNKNOWN_COMMAND;
+        return NULL;
+    }
+}
+
 DbOperator* parse_print(char* query_command, ClientContext* context, message* send_message) {
     char* token = NULL;
     // check for leading '('
@@ -308,7 +354,7 @@ DbOperator* parse_print(char* query_command, ClientContext* context, message* se
                 allocated_columns_count *= 2;
                 dbo->operator_fields.print_operator.generalized_columns = (GeneralizedColumn**) realloc(dbo->operator_fields.print_operator.generalized_columns, allocated_columns_count * sizeof(GeneralizedColumn*));
             }
-            GeneralizedColumn* gen_column = lookup_generalized_column_by_handle(context, token);
+            GeneralizedColumn* gen_column = lookup_gcolumn_by_handle(context, token);
             if (gen_column == NULL) {
                 send_message->status = OBJECT_NOT_FOUND;
                 free_db_operator(dbo);
@@ -379,6 +425,9 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else if (strncmp(query_command, "select", 6) == 0) {
         query_command += 6;
         dbo = parse_select(query_command, send_message);
+    } else if (strncmp(query_command, "fetch", 5) == 0) {
+        query_command += 5;
+        dbo = parse_fetch(query_command, context, send_message);
     } else if (strncmp(query_command, "print", 5) == 0) {
         query_command += 5;
         dbo = parse_print(query_command, context, send_message);

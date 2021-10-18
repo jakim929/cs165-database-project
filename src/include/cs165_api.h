@@ -228,6 +228,7 @@ typedef enum OperatorType {
     INSERT,
     LOAD,
     SELECT,
+    FETCH,
     PRINT,
     SHUTDOWN,
 } OperatorType;
@@ -283,6 +284,11 @@ typedef struct SelectOperator {
     NullableInt range_end;
 } SelectOperator;
 
+typedef struct FetchOperator {
+    Column* column;
+    Result* posn_vec;
+} FetchOperator;
+
 typedef struct PrintOperator {
     GeneralizedColumn** generalized_columns;
     int generalized_columns_count;
@@ -297,6 +303,7 @@ typedef union OperatorFields {
     LoadOperator load_operator;
     SelectOperator select_operator;
     PrintOperator print_operator;
+    FetchOperator fetch_operator;
 } OperatorFields;
 /*
  * DbOperator holds the following fields:

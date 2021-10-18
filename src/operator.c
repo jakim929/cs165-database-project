@@ -63,7 +63,12 @@ char* execute_db_operator(DbOperator* query) {
         }
     }else if(query && query->type == SELECT) {
         Status select_status;
-        Result* select_result = select_from_column(query->operator_fields.select_operator.column, &(query->operator_fields.select_operator.range_start), &(query->operator_fields.select_operator.range_end), &select_status);
+        Result* select_result = select_from_column(
+            query->operator_fields.select_operator.column,
+            &(query->operator_fields.select_operator.range_start),
+            &(query->operator_fields.select_operator.range_end),
+            &select_status
+        );
         struct GeneralizedColumn gen_column;
         union GeneralizedColumnPointer gen_column_pointer;
         if (query->handle != NULL) {
@@ -78,6 +83,25 @@ char* execute_db_operator(DbOperator* query) {
         }
         if (select_status.code == OK) {
             return "165";
+        }
+    }else if (query && query->type == FETCH) {
+        Status fetch_status;
+        Result* fetch_result = fetch(
+            query->operator_fields.fetch_operator.column,
+            query->operator_fields.fetch_operator.posn_vec,
+            &fetch_status
+        );
+        struct GeneralizedColumn gen_column;
+        union GeneralizedColumnPointer gen_column_pointer;
+        if (query->handle != NULL) {
+            gen_column_pointer.result = fetch_result;
+            gen_column.column_pointer = gen_column_pointer;
+            gen_column.column_type = RESULT;
+            int rflag = add_generalized_column_to_client_context(query->context, &gen_column, query->handle);
+            if (rflag < 0) {
+                fetch_status.code = ERROR;
+                return "";
+            }
         }
     }else if (query && query->type == PRINT) {
         char* print_result = execute_print_operator(&(query->operator_fields.print_operator));

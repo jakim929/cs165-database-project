@@ -25,7 +25,7 @@ int add_generalized_column_to_client_context(ClientContext* client_context, Gene
 }
 
 // TODO optimize lookup with hash tables
-GeneralizedColumn* lookup_generalized_column_by_handle(ClientContext* client_context, char* handle) {
+GeneralizedColumn* lookup_gcolumn_by_handle(ClientContext* client_context, char* handle) {
 	for (int i = 0; i < client_context->chandles_in_use; i++) {
 		if (strcmp(client_context->chandle_table[i].name, handle) == 0) {
 			return &(client_context->chandle_table[i].generalized_column);
