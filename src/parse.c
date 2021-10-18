@@ -226,7 +226,7 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
         // check that we received the correct number of input values
         if (columns_inserted != insert_table->col_count) {
             send_message->status = INCORRECT_FORMAT;
-            free (dbo);
+            free_db_operator(dbo);
             return NULL;
         } 
         return dbo;
@@ -286,49 +286,58 @@ DbOperator* parse_select(char* query_command, message* send_message) {
     }
 }
 
+DbOperator* parse_print(char* query_command, ClientContext* context, message* send_message) {
+    char* token = NULL;
+    // check for leading '('
+    if (strncmp(query_command, "(", 1) == 0) {
+        int last_char = strlen(query_command) - 1;
+        query_command[last_char] = '\0';
+    
+        query_command++;
+        char** command_index = &query_command;
+        // parse table input
+        // char* table_name = next_token(command_index, &send_message->status);
+        // if (send_message->status == INCORRECT_FORMAT) {
+        //     return NULL;
+        // }
+        // // lookup the table and make sure it exists. 
+        // Table* insert_table = lookup_table(table_name);
+        // if (insert_table == NULL) {
+        //     send_message->status = OBJECT_NOT_FOUND;
+        //     return NULL;
+        // }
+        // // make insert operator. 
+        // DbOperator* dbo = malloc(sizeof(DbOperator));
+        // dbo->type = INSERT;
+        // dbo->operator_fields.insert_operator.table = insert_table;
+        // dbo->operator_fields.insert_operator.values = malloc(sizeof(int) * insert_table->col_count);
+        // parse inputs until we reach the end. Turn each given string into an integer. 
 
-// DbOperator* parse_print(char* query_command, message* send_message) {
-//     unsigned int columns_inserted = 0;
-//     char* token = NULL;
-//     // check for leading '('
-//     if (strncmp(query_command, "(", 1) == 0) {
-//         query_command++;
-//         char** command_index = &query_command;
-//         // parse table input
-//         char* table_name = next_token(command_index, &send_message->status);
-//         if (send_message->status == INCORRECT_FORMAT) {
-//             return NULL;
-//         }
-//         // lookup the table and make sure it exists. 
-//         Table* insert_table = lookup_table(table_name);
-//         if (insert_table == NULL) {
-//             send_message->status = OBJECT_NOT_FOUND;
-//             return NULL;
-//         }
-//         // make insert operator. 
-//         DbOperator* dbo = malloc(sizeof(DbOperator));
-//         dbo->type = INSERT;
-//         dbo->operator_fields.insert_operator.table = insert_table;
-//         dbo->operator_fields.insert_operator.values = malloc(sizeof(int) * insert_table->col_count);
-//         // parse inputs until we reach the end. Turn each given string into an integer. 
-//         while ((token = strsep(command_index, ",")) != NULL) {
-//             int insert_val = atoi(token);
-//             dbo->operator_fields.insert_operator.values[columns_inserted] = insert_val;
-//             columns_inserted++;
-//         }
-//         // check that we received the correct number of input values
-//         if (columns_inserted != insert_table->col_count) {
-//             send_message->status = INCORRECT_FORMAT;
-//             free (dbo);
-//             return NULL;
-//         } 
-//         return dbo;
-//     } else {
-//         send_message->status = UNKNOWN_COMMAND;
-//         return NULL;
-//     }
-// }
 
+        DbOperator* dbo = malloc(sizeof(DbOperator));
+        int allocated_columns_count = INITIAL_PRINT_OPERATOR_COLUMNS_CAPACITY;
+        dbo->type = PRINT;
+        dbo->operator_fields.print_operator.generalized_columns_count = 0;
+        dbo->operator_fields.print_operator.generalized_columns = (GeneralizedColumn**) malloc(allocated_columns_count * sizeof(GeneralizedColumn*));
+        while ((token = strsep(command_index, ",")) != NULL) {
+            if (dbo->operator_fields.print_operator.generalized_columns_count == allocated_columns_count) {
+                allocated_columns_count *= 2;
+                dbo->operator_fields.print_operator.generalized_columns = (GeneralizedColumn**) realloc(dbo->operator_fields.print_operator.generalized_columns, allocated_columns_count * sizeof(GeneralizedColumn*));
+            }
+            GeneralizedColumn* gen_column = lookup_generalized_column_by_handle(context, token);
+            if (gen_column == NULL) {
+                send_message->status = OBJECT_NOT_FOUND;
+                free_db_operator(dbo);
+                return NULL;
+            }
+            dbo->operator_fields.print_operator.generalized_columns[dbo->operator_fields.print_operator.generalized_columns_count++] = gen_column;
+        }
+        return dbo;
+    } else {
+        send_message->status = UNKNOWN_COMMAND;
+        return NULL;
+    }
+}
 
 /**
  * parse_command takes as input the send_message from the client and then
@@ -362,7 +371,6 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else {
         handle = NULL;
     }
-    dbo->handle = handle;
 
     cs165_log(stdout, "QUERY: %s\n", query_command);
 
@@ -387,15 +395,19 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else if (strncmp(query_command, "select", 6) == 0) {
         query_command += 6;
         dbo = parse_select(query_command, send_message);
+    } else if (strncmp(query_command, "print", 5) == 0) {
+        query_command += 5;
+        dbo = parse_print(query_command, context, send_message);
     } else if (strncmp(query_command, "shutdown", 8) == 0) {
         query_command += 8;
         dbo = malloc(sizeof(DbOperator));
         dbo->type = SHUTDOWN;
-    } 
+    }
     if (dbo == NULL) {
         return dbo;
     }
     
+    dbo->handle = handle;
     dbo->client_fd = client_socket;
     dbo->context = context;
     return dbo;

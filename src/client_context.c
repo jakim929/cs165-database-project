@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "utils.h"
 #include "catalog.h"
 #include "client_context.h"
 
@@ -16,11 +17,21 @@ int add_generalized_column_to_client_context(ClientContext* client_context, Gene
 		client_context->chandle_table = (GeneralizedColumnHandle*) realloc(client_context->chandle_table, 2 * client_context->chandle_slots * sizeof(GeneralizedColumnHandle));
 		client_context->chandle_slots *= 2;
 	}
-	GeneralizedColumnHandle gen_chandle = client_context->chandle_table[client_context->chandles_in_use++];
-	strcpy(gen_chandle.name, handle);
-	gen_chandle.generalized_column.column_type = gen_column->column_type;
-	gen_chandle.generalized_column.column_pointer = gen_column->column_pointer;
+	GeneralizedColumnHandle* gen_chandle = &(client_context->chandle_table[client_context->chandles_in_use++]);
+	strcpy(gen_chandle->name, handle);
+	gen_chandle->generalized_column.column_type = gen_column->column_type;
+	gen_chandle->generalized_column.column_pointer = gen_column->column_pointer;
 	return 0;
+}
+
+// TODO optimize lookup with hash tables
+GeneralizedColumn* lookup_generalized_column_by_handle(ClientContext* client_context, char* handle) {
+	for (int i = 0; i < client_context->chandles_in_use; i++) {
+		if (strcmp(client_context->chandle_table[i].name, handle) == 0) {
+			return &(client_context->chandle_table[i].generalized_column);
+		}
+	}
+	return NULL;
 }
 
 int free_client_context(ClientContext* client_context) {

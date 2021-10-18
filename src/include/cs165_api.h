@@ -41,6 +41,9 @@ SOFTWARE.
 #define INITIAL_TABLES_SIZE 32
 #define INITIAL_COLUMN_CAPACITY 1024
 
+#define INITIAL_PRINT_OPERATOR_COLUMNS_CAPACITY 32
+#define INITIAL_PRINT_OPERATOR_BUFFER_SIZE 1024
+
 /**
  * EXTRA
  * DataType
@@ -280,6 +283,11 @@ typedef struct SelectOperator {
     NullableInt range_end;
 } SelectOperator;
 
+typedef struct PrintOperator {
+    GeneralizedColumn** generalized_columns;
+    int generalized_columns_count;
+} PrintOperator;
+
 /*
  * union type holding the fields of any operator
  */
@@ -288,6 +296,7 @@ typedef union OperatorFields {
     InsertOperator insert_operator;
     LoadOperator load_operator;
     SelectOperator select_operator;
+    PrintOperator print_operator;
 } OperatorFields;
 /*
  * DbOperator holds the following fields:
@@ -321,12 +330,14 @@ Column* create_column(Table *table, char *name, bool sorted, Status *ret_status)
 void insert_row(Table *table, int* values, Status *ret_status);
 
 Result* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status);
+
 int free_db(Db* db);
 
 Status shutdown_server();
 
-char** execute_db_operator(DbOperator* query);
-void db_operator_free(DbOperator* query);
+char* execute_db_operator(DbOperator* query);
+
+int free_db_operator(DbOperator* dbo);
 
 #endif /* CS165_H */
 

@@ -7,6 +7,8 @@ ClientContext* initialize_client_context();
 
 int add_generalized_column_to_client_context(ClientContext* client_context, GeneralizedColumn* gen_column, char* handle);
 
+GeneralizedColumn* lookup_generalized_column_by_handle(ClientContext* client_context, char* handle);
+
 int free_client_context(ClientContext* client_context);
 
 int free_generalized_column_handle(GeneralizedColumnHandle* gen_chandle);

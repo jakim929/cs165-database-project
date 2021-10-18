@@ -33,90 +33,6 @@
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
 
-/** execute_DbOperator takes as input the DbOperator and executes the query.
- * This should be replaced in your implementation (and its implementation possibly moved to a different file).
- * It is currently here so that you can verify that your server and client can send messages.
- * 
- * Getting started hints: 
- *      What are the structural attributes of a `query`?
- *      How will you interpret different queries?
- *      How will you ensure different queries invoke different execution paths in your code?
- **/
-char* execute_DbOperator(DbOperator* query) {
-    // there is a small memory leak here (when combined with other parts of your database.)
-    // as practice with something like valgrind and to develop intuition on memory leaks, find and fix the memory leak. 
-    
-    if(!query)
-    {
-        return "165";
-    }
-    if(query && query->type == CREATE){
-        if(query->operator_fields.create_operator.create_type == _DB){
-            if (create_db(query->operator_fields.create_operator.name).code == OK) {
-                return "165";
-            } else {
-                return "Failed";
-            }
-        }
-        else if(query->operator_fields.create_operator.create_type == _TABLE) {
-            Status create_status;
-            create_table(query->operator_fields.create_operator.db, 
-                query->operator_fields.create_operator.name, 
-                query->operator_fields.create_operator.col_count, 
-                &create_status);
-            if (create_status.code != OK) {
-                return "Failed";
-            }
-            return "165";
-        } else if(query->operator_fields.create_operator.create_type == _COLUMN) {
-            Status create_status;
-            create_column(query->operator_fields.create_operator.table, 
-                query->operator_fields.create_operator.name, 
-                false,
-                &create_status);
-            if (create_status.code != OK) {
-                return "Failed";
-            }
-            return "165";
-        }
-    }else if(query && query->type == INSERT) {
-        Status insert_status;
-        insert_row(query->operator_fields.insert_operator.table, query->operator_fields.insert_operator.values, &insert_status);
-        if (insert_status.code == OK) {
-            return "165";
-        }
-    }else if(query && query->type == SELECT) {
-        Status select_status;
-        Result* select_result = select_from_column(query->operator_fields.select_operator.column, &(query->operator_fields.select_operator.range_start), &(query->operator_fields.select_operator.range_end), &select_status);
-        struct GeneralizedColumn gen_column;
-        union GeneralizedColumnPointer gen_column_pointer;
-        if (query->handle != NULL) {
-            gen_column_pointer.result = select_result;
-            gen_column.column_pointer = gen_column_pointer;
-            gen_column.column_type = RESULT;
-            int rflag = add_generalized_column_to_client_context(query->context, &gen_column, query->handle);
-            if (rflag < 0) {
-                select_status.code = ERROR;
-            }
-        }
-        // int* payload = (int*) select_result->column_pointer.result->payload;
-        // for(size_t i = 0; i < select_result->column_pointer.result->num_tuples; i++) {
-        //    printf("%d\n", payload[i]);
-        // }
-        if (select_status.code == OK) {
-            return "165";
-        }
-    }else if(query && query->type == SHUTDOWN) {
-        Status shutdown_status = shutdown_server();
-        if (shutdown_status.code != OK) {
-            return "Failed";
-        }
-        return "Bye 165";
-    }
-    free(query);
-    return "165";
-}
-
 /**
  * handle_client(client_socket)
  * This is the execution routine after a client has connected.
@@ -154,14 +70,12 @@ void handle_client(int client_socket) {
             length = recv(client_socket, recv_buffer, recv_message.length,0);
             recv_message.payload = recv_buffer;
             recv_message.payload[recv_message.length] = '\0';
-
             // 1. Parse command
             //    Query string is converted into a request for an database operator
             DbOperator* query = parse_command(recv_message.payload, &send_message, client_socket, client_context);
-
             // 2. Handle request
             //    Corresponding database operator is executed over the query
-            char* result = execute_DbOperator(query);
+            char* result = execute_db_operator(query);
 
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
@@ -233,34 +147,6 @@ int setup_server() {
 
     return server_socket;
 }
-
-// Initial work on loading data. TBD
-// int initialize_data() {
-//     const char base_dir[] = "catalog";
-//     maybe_create_directory(base_dir);
-    
-//     DIR* dir_stream;
-//     struct dirent* dir_entry;
-
-//     dir_stream = opendir(base_dir);
-//     if (dir_stream == NULL) {
-//         log_info("Cannot open directory '%s'\n", base_dir);
-//         return -1;
-//     }
-
-//     struct stat filestat;
-//     while ((dir_entry = readdir(dir_stream)) != NULL) {
-//         stat(dir_entry->d_name,&filestat);
-//         if( S_ISDIR(filestat.st_mode)) {
-//             log_info("directory [%d] [%s]\n", dir_entry->d_type, dir_entry->d_name);
-//         } else {
-//             log_info("non directory [%d] [%s]\n", dir_entry->d_type, dir_entry->d_name);
-//         }
-//     }
-
-//     return 1;
-// }
-
 
 Status shutdown_server() {
     struct Status ret_status;
