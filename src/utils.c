@@ -140,12 +140,29 @@ void parse_nullable_int(NullableInt* nullable_int, char* str) {
 
 bool check_directory_exists(const char* pathname) {
     bool found = true;
-    struct stat* stat_result = malloc(sizeof(struct stat));
-	if (stat(pathname, stat_result) == -1) {
+    struct stat stat_result;
+	if (stat(pathname, &stat_result) == -1) {
 		found = false;
 	}
-    free(stat_result);
     return found;
+}
+
+size_t read_file_to_buffer(char* buffer, const char* pathname) {
+    FILE *fd = fopen(pathname, "r");
+    size_t read_size = 0;
+    if (fd != NULL) {
+        fseek(fd, 0L, SEEK_END);
+        size_t file_size = ftell(fd);
+        fseek(fd, 0L, SEEK_SET);
+        read_size = fread(buffer, sizeof(char), file_size, fd);
+        if (ferror(fd) != 0) {
+            return 0;
+        } else {
+            buffer[read_size++] = '\0';
+        }
+        fclose(fd);
+    }
+    return read_size;
 }
 
 int maybe_create_directory(const char* pathname) {

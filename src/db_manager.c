@@ -15,9 +15,7 @@ Db *current_db;
 
 void insert_row(Table* table, int* values, Status *ret_status) {
 	for (size_t i = 0; i < table->col_count; i++) {
-		struct Column col = table->columns[i];
-		col.data[table->table_length] = values[i];
-		col.size++;
+		table->columns[i].data[table->columns[i].size++] = values[i];
 	}
 	table->table_length++;
 	ret_status->code = OK;

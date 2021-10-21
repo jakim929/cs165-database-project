@@ -32,6 +32,14 @@ char* next_token(char** tokenizer, message_status* status) {
     return token;
 }
 
+char* next_line(char** tokenizer, message_status* status) {
+    char* token = strsep(tokenizer, "\n");
+    if (token == NULL) {
+        *status= INCORRECT_FORMAT;
+    }
+    return token;
+}
+
 DbOperator* parse_create_col(char* create_arguments) {
     message_status status = OK_DONE;
     char** create_arguments_index = &create_arguments;
@@ -369,6 +377,48 @@ DbOperator* parse_print(char* query_command, ClientContext* context, message* se
     }
 }
 
+Table* get_table_from_column_names(char* column_names, message* send_message) {
+    char** column_name_index = &column_names;
+    char* first_column_name = next_token(column_name_index, &send_message->status);
+    Table* table;
+    Column* column;
+    lookup_table_and_column(&table, &column, first_column_name);
+    return table;
+}
+
+// int** initialize_load_columns(size_t col_count, size_t initial_row_count) {
+//     int** load_columns = (int**) malloc(col_count * (sizeof(int*)));
+//     for(size_t i = 0; i < col_count; i++) {
+//         load_columns[i] = (int*) malloc(initial_row_count * sizeof(int));
+//     }
+// }
+
+DbOperator* parse_load(char* query_command, message* send_message) {
+    printf("parse_load is loading\n%s\n",query_command);
+    if (strncmp(query_command, "\n", 1) == 0) {
+        query_command++;
+        char** command_index = &query_command;
+
+        char* column_names = next_line(command_index, &send_message->status);
+        Table* table = get_table_from_column_names(column_names, send_message);
+        
+        if (table == NULL) {
+            send_message->status = OBJECT_NOT_FOUND;
+            return NULL;
+        }
+
+        DbOperator* dbo = malloc(sizeof(DbOperator));
+        dbo->type = LOAD;
+        dbo->operator_fields.load_operator.table = table;
+        dbo->operator_fields.load_operator.load_data = *command_index;
+    
+        return dbo;
+    } else {
+        send_message->status = UNKNOWN_COMMAND;
+        return NULL;
+    }
+}
+
 /**
  * parse_command takes as input the send_message from the client and then
  * parses it into the appropriate query. Stores into send_message the
@@ -408,7 +458,9 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     //   indication to client to now wait for the response from the server.
     //   Note, some commands might want to relay a different status back to the client.
     send_message->status = OK_WAIT_FOR_RESPONSE;
-    query_command = trim_whitespace(query_command);
+
+    bool is_load_command = strncmp(query_command, "load", 4) == 0;
+    query_command = is_load_command ? query_command : trim_whitespace(query_command);
     // check what command is given. 
     if (strncmp(query_command, "create", 6) == 0) {
         query_command += 6;
@@ -431,6 +483,9 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else if (strncmp(query_command, "print", 5) == 0) {
         query_command += 5;
         dbo = parse_print(query_command, context, send_message);
+    } else if (strncmp(query_command, "load", 4) == 0) {
+        query_command += 4;
+        dbo = parse_load(query_command, send_message);
     } else if (strncmp(query_command, "shutdown", 8) == 0) {
         query_command += 8;
         dbo = malloc(sizeof(DbOperator));

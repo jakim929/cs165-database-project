@@ -1,10 +1,11 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "cs165_api.h"
 #include "utils.h"
 #include "client_context.h"
 
-
+char* execute_load_operator(LoadOperator* load_operator);
 char* execute_print_operator(PrintOperator* print_operator);
 
 /** execute_DbOperator takes as input the DbOperator and executes the query.
@@ -24,14 +25,14 @@ char* execute_db_operator(DbOperator* query) {
     
     if(!query)
     {
-        return "165";
+        return "";
     }
     if(query && query->type == CREATE){
         if(query->operator_fields.create_operator.create_type == _DB){
             if (create_db(query->operator_fields.create_operator.name).code == OK) {
-                return "165";
+                return "";
             } else {
-                return "Failed";
+                return "";
             }
         }
         else if(query->operator_fields.create_operator.create_type == _TABLE) {
@@ -41,9 +42,9 @@ char* execute_db_operator(DbOperator* query) {
                 query->operator_fields.create_operator.col_count, 
                 &create_status);
             if (create_status.code != OK) {
-                return "Failed";
+                return "";
             }
-            return "165";
+            return "";
         } else if(query->operator_fields.create_operator.create_type == _COLUMN) {
             Status create_status;
             create_column(query->operator_fields.create_operator.table, 
@@ -51,15 +52,15 @@ char* execute_db_operator(DbOperator* query) {
                 false,
                 &create_status);
             if (create_status.code != OK) {
-                return "Failed";
+                return "";
             }
-            return "165";
+            return "";
         }
     }else if(query && query->type == INSERT) {
         Status insert_status;
         insert_row(query->operator_fields.insert_operator.table, query->operator_fields.insert_operator.values, &insert_status);
         if (insert_status.code == OK) {
-            return "165";
+            return "";
         }
     }else if(query && query->type == SELECT) {
         Status select_status;
@@ -82,7 +83,7 @@ char* execute_db_operator(DbOperator* query) {
             }
         }
         if (select_status.code == OK) {
-            return "165";
+            return "";
         }
     }else if (query && query->type == FETCH) {
         Status fetch_status;
@@ -103,18 +104,21 @@ char* execute_db_operator(DbOperator* query) {
                 return "";
             }
         }
-    }else if (query && query->type == PRINT) {
+    } else if (query && query->type == LOAD) {
+        char* load_result = execute_load_operator(&(query->operator_fields.load_operator));
+        return load_result;
+    } else if (query && query->type == PRINT) {
         char* print_result = execute_print_operator(&(query->operator_fields.print_operator));
         return print_result;
-    }else if(query && query->type == SHUTDOWN) {
+    } else if(query && query->type == SHUTDOWN) {
         Status shutdown_status = shutdown_server();
         if (shutdown_status.code != OK) {
-            return "Failed";
+            return "";
         }
-        return "Bye 165";
+        return "";
     }
     free_db_operator(query);
-    return "165";
+    return "";
 }
 
 Result* fetch(Column* val_vec, Result* posn_vec, Status* ret_status) {
@@ -195,6 +199,25 @@ char* execute_print_operator(PrintOperator* print_operator) {
     }
     buffer[written_so_far - 1] = '\0';
     return buffer;
+}
+
+char* execute_load_operator(LoadOperator* load_operator) {
+    Status insert_status;
+    int* row_buffer = (int*) malloc(load_operator->table->col_count * sizeof(int));
+    char* line = NULL;
+
+    while ((line = strsep(&(load_operator->load_data), "\n")) != NULL) {
+        size_t col_inserted = 0;
+        char* value = NULL;
+        while ((value = strsep(&line, ",")) != NULL) {
+            row_buffer[col_inserted++] = atoi(value);
+            if (col_inserted == load_operator->table->col_count) {
+                col_inserted = 0;
+                insert_row(load_operator->table, row_buffer, &insert_status);
+            }
+        }
+    }
+    return "";
 }
 
 int free_db_operator(DbOperator* dbo) {

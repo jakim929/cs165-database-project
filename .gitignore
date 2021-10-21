@@ -36,5 +36,6 @@ r*hs # vtune output
 .deps # makefile temps
 .DS_Store
 catalog
+test_load.csv
 
 .vscode

@@ -64,6 +64,8 @@ void parse_nullable_int(NullableInt* nullable_int, char* str);
 
 bool check_directory_exists(const char* pathname);
 
+size_t read_file_to_buffer(char* buffer, const char* pathname);
+
 int maybe_create_directory(const char* pathname);
 
 void print_db_data(Db* db);

@@ -266,7 +266,11 @@ typedef struct InsertOperator {
  * necessary fields for insertion
  */
 typedef struct LoadOperator {
-    char* file_name;
+    // char* file_name;
+    Table* table;
+    char* load_data;
+    // int** load_columns;
+    // int num_rows;
 } LoadOperator;
 /*
  * necessary fields for select operator
