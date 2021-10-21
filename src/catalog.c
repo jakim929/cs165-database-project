@@ -10,7 +10,7 @@
 #include "utils.h"
 
 int unpersist_tbl(Table* tbl, char* tbl_catalog_path);
-int unpersist_col(Column* col, char* name, char* col_data_path, size_t column_size);
+int unpersist_col(Column* col, char* name, char* col_data_path, size_t column_size, size_t column_capacity);
 
 void* mmap_file_for_read(char* path, size_t size) {
 	int rflag = -1;
@@ -95,7 +95,8 @@ int unpersist_tbl(Table* tbl, char* tbl_catalog_path) {
     strncpy(tbl->base_directory, tbl_catalog->base_directory, MAX_PATH_NAME_SIZE);
     tbl->col_count = tbl_catalog->col_count;
     tbl->columns_capacity = tbl_catalog->columns_capacity;
-    tbl->table_length = tbl_catalog->table_length;;
+    tbl->table_length = tbl_catalog->table_length;
+	tbl->table_capacity = tbl_catalog->table_capacity;
     tbl->columns = (Column*) malloc(sizeof(Column) * tbl->col_count);
 
     char *tokenizer = NULL;
@@ -108,7 +109,7 @@ int unpersist_tbl(Table* tbl, char* tbl_catalog_path) {
     char* col_name = strtok_r(col_names, delimiter, &tokenizer);
     while(col_name != NULL) {
         snprintf(col_data_path, MAX_PATH_NAME_SIZE, "%s/%s.%s.data", tbl->base_directory, tbl->name, col_name);
-        if (unpersist_col(&tbl->columns[col_i], col_name, col_data_path, tbl->table_length) < 0) {
+        if (unpersist_col(&tbl->columns[col_i], col_name, col_data_path, tbl->table_length, tbl->table_capacity) < 0) {
             return -1;
         }
         col_name = strtok_r(NULL, delimiter, &tokenizer);
@@ -121,7 +122,7 @@ int unpersist_tbl(Table* tbl, char* tbl_catalog_path) {
 }
 
 // pass initial length later
-int unpersist_col(Column* col, char* name, char* col_data_path, size_t column_size) {
+int unpersist_col(Column* col, char* name, char* col_data_path, size_t column_size, size_t column_capacity) {
 	strncpy(col->name, name, MAX_SIZE_NAME);
     strncpy(col->path, col_data_path, MAX_PATH_NAME_SIZE);
     
@@ -132,8 +133,7 @@ int unpersist_col(Column* col, char* name, char* col_data_path, size_t column_si
 		return -1;
 	}
 
-	// TODO: change INITIAL_COLUMN_CAPACITY to a more reasonable number, ideally based on column_size
-	rflag = lseek(fd, (INITIAL_COLUMN_CAPACITY * sizeof(int)) - 1, SEEK_SET);
+	rflag = lseek(fd, (column_capacity * sizeof(int)) - 1, SEEK_SET);
 
 	if (rflag == -1) {
 		close(fd);
@@ -147,8 +147,9 @@ int unpersist_col(Column* col, char* name, char* col_data_path, size_t column_si
 		return -1;
 	}
 
-	col->data = (int*) mmap(0, (INITIAL_COLUMN_CAPACITY * sizeof(int)), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+	col->data = (int*) mmap(0, (column_capacity * sizeof(int)), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 	col->size = column_size;
+	col->capacity = column_capacity;
 	close(fd);
 	return 0;
 }
@@ -240,6 +241,7 @@ int persist_tbl_catalog(Table* tbl) {
 	tbl_catalog->columns_capacity = tbl->columns_capacity;
 	tbl_catalog->col_count = tbl->col_count;
 	tbl_catalog->table_length = tbl->table_length;
+	tbl_catalog->table_capacity = tbl->table_capacity;
 	strncpy(tbl_catalog->name, tbl->name, MAX_SIZE_NAME);
     strncpy(tbl_catalog->base_directory, tbl->base_directory, MAX_SIZE_NAME);
 	char* ptr_to_write = tbl_catalog->column_names;

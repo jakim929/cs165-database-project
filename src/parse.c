@@ -460,7 +460,7 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     send_message->status = OK_WAIT_FOR_RESPONSE;
 
     bool is_load_command = strncmp(query_command, "load", 4) == 0;
-    query_command = is_load_command ? query_command : trim_whitespace(query_command);
+    query_command = is_load_command ? trim_whitespace_retain_new_line(query_command) : trim_whitespace(query_command);
     // check what command is given. 
     if (strncmp(query_command, "create", 6) == 0) {
         query_command += 6;

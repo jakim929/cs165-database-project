@@ -52,6 +52,21 @@ char* trim_whitespace(char *str)
     return str;
 }
 
+char* trim_whitespace_retain_new_line(char *str)
+{
+    int length = strlen(str);
+    int current = 0;
+    for (int i = 0; i < length; ++i) {
+        if (!isspace(str[i]) || str[i] == '\n') {
+            str[current++] = str[i];
+        }
+    }
+
+    // Write new null terminator
+    str[current] = '\0';
+    return str;
+}
+
 /* removes parenthesis characters from the input string.
  * Shifts characters over and shortens the length of
  * the string by the number of parenthesis characters.

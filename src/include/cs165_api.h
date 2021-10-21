@@ -69,6 +69,7 @@ typedef struct Column {
     // You will implement column indexes later. 
     void* index;
     size_t size;
+    size_t capacity;
     //struct ColumnIndex *index;
     //bool clustered;
 } Column;
@@ -95,6 +96,7 @@ typedef struct Table {
     size_t columns_capacity;
     size_t col_count;
     size_t table_length;
+    size_t table_capacity;
 } Table;
 
 typedef struct PersistedTableCatalog {
@@ -103,6 +105,7 @@ typedef struct PersistedTableCatalog {
     size_t columns_capacity;
     size_t col_count;
     size_t table_length;
+    size_t table_capacity;
     char column_names[MAX_SIZE_NAME * 256];
 } PersistedTableCatalog;
 

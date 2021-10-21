@@ -28,7 +28,7 @@ machine please look into this as a a source of error. */
 #include "message.h"
 #include "utils.h"
 
-#define DEFAULT_STDIN_BUFFER_SIZE 1024
+#define DEFAULT_STDIN_BUFFER_SIZE 8192
 
 /**
  * connect_client()

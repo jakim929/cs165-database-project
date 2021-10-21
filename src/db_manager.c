@@ -13,13 +13,59 @@
 // In this class, there will always be only one active database at a time
 Db *current_db;
 
+int resize_column_capacity(Column* column, size_t new_capacity);
+
 void insert_row(Table* table, int* values, Status *ret_status) {
+	if (table->table_capacity == table->table_length) {
+		table->table_capacity *= 2;
+		for (size_t i = 0; i < table->col_count; i++) {
+			resize_column_capacity(&(table->columns[i]), table->table_capacity);
+		}
+	}
 	for (size_t i = 0; i < table->col_count; i++) {
 		table->columns[i].data[table->columns[i].size++] = values[i];
 	}
 	table->table_length++;
 	ret_status->code = OK;
 	return;
+}
+
+int resize_column_capacity(Column* column, size_t new_capacity) {
+	int rflag = msync(column->data, column->capacity * sizeof(int), MS_SYNC);
+    if(rflag == -1)
+    {
+        return -1;
+    }
+    rflag = munmap(column->data, column->capacity * sizeof(int));
+    if(rflag == -1)
+    {
+        return -1;
+    }
+
+	int fd = open(column->path, O_RDWR | O_CREAT, (mode_t)0600);
+
+	if(fd == -1) {
+		return -1;
+	}
+
+	rflag = lseek(fd, (new_capacity * sizeof(int)) - 1, SEEK_SET);
+
+	if (rflag == -1) {
+		close(fd);
+		return -1;
+	}
+
+	rflag = write(fd, "", 1);
+
+	if (rflag == -1) {
+		close(fd);
+		return -1;
+	}
+
+	column->data = (int*) mmap(0, (new_capacity * sizeof(int)), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+	column->capacity = new_capacity;
+	close(fd);
+	return 0;
 }
 
 Column* create_column(Table *table, char *name, bool sorted, Status *ret_status) {
@@ -87,6 +133,7 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
 	new_table->columns = (Column*) malloc(sizeof(Column) * num_columns);
 	new_table->columns_capacity = num_columns;
 	new_table->table_length = 0;
+	new_table->table_capacity = INITIAL_COLUMN_CAPACITY;
 
 	ret_status->code=OK;
 	return new_table;
@@ -116,12 +163,12 @@ int free_column(Column* column) {
 	if (!column) {
 		return 0;
 	}
-    int rflag = msync(column->data, INITIAL_COLUMN_CAPACITY * sizeof(int), MS_SYNC);
+    int rflag = msync(column->data, column->capacity * sizeof(int), MS_SYNC);
     if(rflag == -1)
     {
         return -1;
     }
-    rflag = munmap(column->data, INITIAL_COLUMN_CAPACITY * sizeof(int));
+    rflag = munmap(column->data, column->capacity * sizeof(int));
     if(rflag == -1)
     {
         return -1;

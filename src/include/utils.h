@@ -31,6 +31,8 @@ char* trim_parenthesis(char *str);
 
 char* trim_whitespace(char *str);
 
+char* trim_whitespace_retain_new_line(char *str);
+
 /**
  * trims quotations characters from a string (in place)
  **/
