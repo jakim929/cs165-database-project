@@ -182,7 +182,7 @@ size_t read_file_to_buffer(char* buffer, const char* pathname) {
 
 int maybe_create_directory(const char* pathname) {
     if (!check_directory_exists(pathname)) {
-        mkdir(pathname, 0700);
+        mkdir(pathname, 0777);
     }
     return 1;
 }

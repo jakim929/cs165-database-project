@@ -111,7 +111,6 @@ int main(void)
                 strcpy(file_name, trim_newline(trim_parenthesis(trim_quotes(read_buffer + 4))));
                 send_message.payload[4] = '\n';
                 size_t file_size = read_file_to_buffer(send_message.payload + 5, file_name);
-                printf("Read result [%zu]:\n%s\n", file_size, send_message.payload);
                 send_message.length = strlen(send_message.payload);
             }
             // Send the message_header, which tells server payload size

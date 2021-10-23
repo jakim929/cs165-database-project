@@ -79,9 +79,16 @@ Column* create_column(Table *table, char *name, bool sorted, Status *ret_status)
 	struct Column* new_column = &(table->columns[table->col_count - table->columns_capacity]);
 	table->columns_capacity--;
 
-	strncpy(new_column->name, name, MAX_SIZE_NAME);
-	snprintf(new_column->path, MAX_PATH_NAME_SIZE, "%s/%s.%s.data", table->base_directory, table->name, name);
+	new_column->capacity = table->table_capacity;
 
+	strncpy(new_column->name, name, MAX_SIZE_NAME);
+	strcat(new_column->path, table->base_directory);
+	strcat(new_column->path, "/");
+	strcat(new_column->path, table->name);
+	strcat(new_column->path, ".");
+	strcat(new_column->path, name);
+	strcat(new_column->path, ".data");
+	
 	int rflag = -1;
 	int fd = open(new_column->path, O_RDWR | O_CREAT, (mode_t)0600);
 
@@ -90,7 +97,7 @@ Column* create_column(Table *table, char *name, bool sorted, Status *ret_status)
 		return NULL;
 	}
 
-	rflag = lseek(fd, (INITIAL_COLUMN_CAPACITY * sizeof(int)) - 1, SEEK_SET);
+	rflag = lseek(fd, (new_column->capacity * sizeof(int)) - 1, SEEK_SET);
 
 	if (rflag == -1) {
 		close(fd);
@@ -106,7 +113,8 @@ Column* create_column(Table *table, char *name, bool sorted, Status *ret_status)
 		return NULL;
 	}
 
-	new_column->data = (int*) mmap(0, (INITIAL_COLUMN_CAPACITY * sizeof(int)), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+	new_column->data = (int*) mmap(0, (new_column->capacity * sizeof(int)), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+
 	close(fd);
 
 	ret_status->code = OK;
@@ -149,7 +157,10 @@ Status create_db(const char* db_name) {
 	new_db->tables_size = INITIAL_TABLES_SIZE;
 	new_db->tables_capacity = INITIAL_TABLES_SIZE;
 	new_db->tables = (Table*) malloc(sizeof(Table) * INITIAL_TABLES_SIZE);
-	snprintf(new_db->base_directory, MAX_PATH_NAME_SIZE, "%s/%s", BASE_CATALOG_PATH, db_name);
+	strcat(new_db->base_directory, BASE_CATALOG_PATH);
+	strcat(new_db->base_directory, "/");
+	strcat(new_db->base_directory, db_name);
+
 	maybe_create_directory(BASE_CATALOG_PATH);
 	maybe_create_directory(new_db->base_directory);
 

@@ -31,17 +31,17 @@ void* mmap_file_for_read(char* path, size_t size) {
 
     void* ptr = mmap(0, size, PROT_READ, MAP_SHARED, fd, 0);
 	close(fd);
-
     return ptr;
 }
 
 Db* unpersist_db(char* db_name) {
-    char db_catalog_path[MAX_PATH_NAME_SIZE];
-    snprintf(db_catalog_path, MAX_PATH_NAME_SIZE, "%s/%s/%s.db", BASE_CATALOG_PATH, db_name, db_name);
-
-    if (!check_directory_exists(db_catalog_path)) {
-        return NULL;
-    }
+    char db_catalog_path[MAX_PATH_NAME_SIZE] = "";
+	strcat(db_catalog_path, BASE_CATALOG_PATH);
+	strcat(db_catalog_path, "/");
+	strcat(db_catalog_path, db_name);
+	strcat(db_catalog_path, "/");
+	strcat(db_catalog_path, db_name);
+	strcat(db_catalog_path, ".db");
 
     PersistedDbCatalog* db_catalog = (PersistedDbCatalog*) mmap_file_for_read(db_catalog_path, sizeof(PersistedDbCatalog));
 
@@ -55,7 +55,7 @@ Db* unpersist_db(char* db_name) {
 
     const char delimiter[2] = ",";
     char *tokenizer;
-    char table_catalog_path[MAX_PATH_NAME_SIZE];
+    char table_catalog_path[MAX_PATH_NAME_SIZE] = "";
     size_t table_i = 0;
 
 	char* tb_names = (char*) malloc(strlen(db_catalog->table_names) * sizeof(char));
@@ -63,7 +63,10 @@ Db* unpersist_db(char* db_name) {
 	
     char* table_name = strtok_r(db_catalog->table_names, delimiter, &tokenizer);
     while(table_name != NULL) {
-        snprintf(table_catalog_path, MAX_PATH_NAME_SIZE, "%s/%s.tbl", db->base_directory, table_name);
+		strcat(table_catalog_path, db->base_directory);
+		strcat(table_catalog_path, "/");
+		strcat(table_catalog_path, table_name);
+		strcat(table_catalog_path, ".tbl");
         if (unpersist_tbl(&(db->tables[table_i]), table_catalog_path) < 0) {
             return NULL;
         }
@@ -86,13 +89,9 @@ Db* unpersist_db(char* db_name) {
 }
 
 int unpersist_tbl(Table* tbl, char* tbl_catalog_path) {
-    if (!check_directory_exists(tbl_catalog_path)) {
-        return -1;
-    }
-
     PersistedTableCatalog* tbl_catalog = (PersistedTableCatalog*) mmap_file_for_read(tbl_catalog_path, sizeof(PersistedTableCatalog));
-    strncpy(tbl->name, tbl_catalog->name, MAX_SIZE_NAME);
-    strncpy(tbl->base_directory, tbl_catalog->base_directory, MAX_PATH_NAME_SIZE);
+	strcpy(tbl->name, tbl_catalog->name);
+    strcpy(tbl->base_directory, tbl_catalog->base_directory);
     tbl->col_count = tbl_catalog->col_count;
     tbl->columns_capacity = tbl_catalog->columns_capacity;
     tbl->table_length = tbl_catalog->table_length;
@@ -101,16 +100,22 @@ int unpersist_tbl(Table* tbl, char* tbl_catalog_path) {
 
     char *tokenizer = NULL;
     const char delimiter[2] = ",";
-    char col_data_path[MAX_PATH_NAME_SIZE];
+    char col_data_path[MAX_PATH_NAME_SIZE] = "";
     size_t col_i = 0;
 	char* col_names = (char*) malloc(strlen(tbl_catalog->column_names) * sizeof(char));
 	strcpy(col_names, tbl_catalog->column_names);
 
     char* col_name = strtok_r(col_names, delimiter, &tokenizer);
     while(col_name != NULL) {
-        snprintf(col_data_path, MAX_PATH_NAME_SIZE, "%s/%s.%s.data", tbl->base_directory, tbl->name, col_name);
+		col_data_path[0] = '\0';
+		strcat(col_data_path, tbl->base_directory);
+		strcat(col_data_path, "/");
+		strcat(col_data_path, tbl->name);
+		strcat(col_data_path, ".");
+		strcat(col_data_path, col_name);
+		strcat(col_data_path, ".data");
         if (unpersist_col(&tbl->columns[col_i], col_name, col_data_path, tbl->table_length, tbl->table_capacity) < 0) {
-            return -1;
+			return -1;
         }
         col_name = strtok_r(NULL, delimiter, &tokenizer);
         col_i++;
@@ -123,8 +128,8 @@ int unpersist_tbl(Table* tbl, char* tbl_catalog_path) {
 
 // pass initial length later
 int unpersist_col(Column* col, char* name, char* col_data_path, size_t column_size, size_t column_capacity) {
-	strncpy(col->name, name, MAX_SIZE_NAME);
-    strncpy(col->path, col_data_path, MAX_PATH_NAME_SIZE);
+	strcpy(col->name, name);
+    strcpy(col->path, col_data_path);
     
     int rflag = -1;
 	int fd = open(col->path, O_RDWR | O_CREAT, (mode_t)0600);
@@ -155,8 +160,11 @@ int unpersist_col(Column* col, char* name, char* col_data_path, size_t column_si
 }
 
 int persist_db_catalog(Db* db) {
-	char db_catalog_path[MAX_PATH_NAME_SIZE];
-	snprintf(db_catalog_path, MAX_PATH_NAME_SIZE, "%s/%s.db", db->base_directory, db->name);
+	char db_catalog_path[MAX_PATH_NAME_SIZE] = "";
+	strcat(db_catalog_path, db->base_directory);
+	strcat(db_catalog_path, "/");
+	strcat(db_catalog_path, db->name);
+	strcat(db_catalog_path, ".db\0");
 
 	int rflag = -1;
 	int fd = open(db_catalog_path, O_RDWR | O_CREAT, (mode_t)0600);
@@ -184,8 +192,8 @@ int persist_db_catalog(Db* db) {
 
 	db_catalog->tables_size = db->tables_size;
 	db_catalog->tables_capacity = db->tables_capacity;
-	strncpy(db_catalog->name, db->name, MAX_SIZE_NAME);
-	strncpy(db_catalog->base_directory, db->base_directory, MAX_PATH_NAME_SIZE);
+	strcpy(db_catalog->name, db->name);
+	strcpy(db_catalog->base_directory, db->base_directory);
 	char* ptr_to_write = db_catalog->table_names;
 	for (size_t i = 0; i < db->tables_size - db->tables_capacity; i++) {
 		strncpy(ptr_to_write, db->tables[i].name, strlen(db->tables[i].name));
@@ -211,8 +219,11 @@ int persist_db_catalog(Db* db) {
 }
 
 int persist_tbl_catalog(Table* tbl) {
-	char tbl_catalog_path[MAX_PATH_NAME_SIZE];
-	snprintf(tbl_catalog_path, MAX_PATH_NAME_SIZE, "%s/%s.tbl", tbl->base_directory, tbl->name);
+	char tbl_catalog_path[MAX_PATH_NAME_SIZE] = "";
+	strcat(tbl_catalog_path, tbl->base_directory);
+	strcat(tbl_catalog_path, "/");
+	strcat(tbl_catalog_path, tbl->name);
+	strcat(tbl_catalog_path, ".tbl");
 
 	int rflag = -1;
 	int fd = open(tbl_catalog_path, O_RDWR | O_CREAT, (mode_t)0600);

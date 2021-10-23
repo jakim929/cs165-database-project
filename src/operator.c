@@ -1,5 +1,6 @@
-#include <string.h>
+#define _DEFAULT_SOURCE
 #include <stdio.h>
+#include <string.h>
 
 #include "cs165_api.h"
 #include "utils.h"

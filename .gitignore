@@ -37,5 +37,5 @@ r*hs # vtune output
 .DS_Store
 catalog
 test_load.csv
-
+status.current_container_id
 .vscode

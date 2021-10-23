@@ -394,12 +394,12 @@ Table* get_table_from_column_names(char* column_names, message* send_message) {
 // }
 
 DbOperator* parse_load(char* query_command, message* send_message) {
-    printf("parse_load is loading\n%s\n",query_command);
     if (strncmp(query_command, "\n", 1) == 0) {
         query_command++;
         char** command_index = &query_command;
 
         char* column_names = next_line(command_index, &send_message->status);
+
         Table* table = get_table_from_column_names(column_names, send_message);
         
         if (table == NULL) {
