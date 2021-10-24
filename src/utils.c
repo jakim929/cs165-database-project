@@ -186,26 +186,3 @@ int maybe_create_directory(const char* pathname) {
     }
     return 1;
 }
-
-void print_db_data(Db* db) {
-    printf("Database: %s\n", db->name);
-    for(size_t i = 0; i < db->tables_size - db->tables_capacity; i++) {
-        print_tbl_data(&(db->tables[i]));
-    }
-}
-
-void print_tbl_data(Table* tbl) {
-    printf("    Table: %s [%zu rows]\n", tbl->name, tbl->table_length);
-    for(size_t i = 0; i < tbl->col_count - tbl->columns_capacity; i++) {
-        print_col_data(&(tbl->columns[i]));
-    }
-}
-
-
-// TODO: Print first few elements in column
-void print_col_data(Column* col) {
-    printf("        Column: %s\n", col->name);
-    for(int i = 0; i < 3; i++) {
-        printf("          [%d] %d \n", i, col->data[i]);
-    }
-}

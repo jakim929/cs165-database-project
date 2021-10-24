@@ -360,6 +360,8 @@ Status shutdown_server();
 
 char* execute_db_operator(DbOperator* query);
 
+char* execute_print_operator(PrintOperator* print_operator);
+
 int free_db_operator(DbOperator* dbo);
 
 #endif /* CS165_H */

@@ -11,6 +11,7 @@
 
 int unpersist_tbl(Table* tbl, char* tbl_catalog_path);
 int unpersist_col(Column* col, char* name, char* col_data_path, size_t column_size, size_t column_capacity);
+void print_db_data(Db* db);
 
 void* mmap_file_for_read(char* path, size_t size) {
 	int rflag = -1;
@@ -277,4 +278,46 @@ int persist_tbl_catalog(Table* tbl) {
     }
 
 	return 0;
+}
+
+void print_tbl_data(Table* tbl, int preview_count) {
+    printf("Table: %s [%zu rows]\n", tbl->name, tbl->table_length);
+    Result posn_vec;
+    posn_vec.num_tuples = preview_count;
+    posn_vec.data_type = INT;
+	int* payload = (int*) malloc(posn_vec.num_tuples * sizeof(int));
+    posn_vec.payload = (void*) payload;
+	for(int i = 0; i < preview_count; i++) {
+		payload[i] = i;
+	}
+
+    GeneralizedColumn** fetch_gcolumns = (GeneralizedColumn**) malloc(tbl->col_count * sizeof(GeneralizedColumn*));
+
+    for (size_t i = 0; i < tbl->col_count; i++) {
+        Status ret_status;
+		fetch_gcolumns[i] = (GeneralizedColumn*) malloc(sizeof(GeneralizedColumn));
+        fetch_gcolumns[i]->column_type = RESULT;
+        fetch_gcolumns[i]->column_pointer.result = fetch(&(tbl->columns[i]), &posn_vec, &ret_status);
+	}
+
+    PrintOperator print_operator;
+    print_operator.generalized_columns = fetch_gcolumns;
+    print_operator.generalized_columns_count = tbl->col_count;
+    char* result_print = execute_print_operator(&print_operator);
+	printf("%s\n", result_print);
+	free(result_print);
+    free(posn_vec.payload);
+    for (size_t i =0; i < tbl->col_count; i++) {
+		free(fetch_gcolumns[i]->column_pointer.result->payload);
+        free(fetch_gcolumns[i]->column_pointer.result);
+		free(fetch_gcolumns[i]);
+    }
+    free(fetch_gcolumns);
+}
+
+void print_db_data(Db* db) {
+    printf("Database: %s\n", db->name);
+    for(size_t i = 0; i < db->tables_size - db->tables_capacity; i++) {
+		print_tbl_data(&(db->tables[i]), 4);
+    }
 }

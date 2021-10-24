@@ -96,7 +96,6 @@ void lookup_table_and_column(Table** table, Column** column, char* name) {
 	Db* db = lookup_db(db_name);
 	*table = lookup_table_in_db(db, table_name);
 	*column =  lookup_column_in_table(*table, column_name);
-
 	return;
 }
 

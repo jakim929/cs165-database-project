@@ -116,7 +116,6 @@ char* execute_db_operator(DbOperator* query) {
             gen_column.column_type = RESULT;
             int rflag = add_generalized_column_to_client_context(query->context, &gen_column, query->handle);
             if (rflag < 0) {
-                printf("wrong\n");
                 return "";
             }
         }
@@ -156,11 +155,13 @@ Result* fetch(Column* val_vec, Result* posn_vec, Status* ret_status) {
 
 Result* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status) {
 	Result* result = (Result*) malloc(sizeof(Result));
-	int* posn_vec = (int*) malloc(sizeof(int) * (column->size));
+    result->num_tuples = 0;
+
+	int* posn_vec = (int*) malloc(sizeof(int) * column->size);
 	for (size_t i = 0; i < column->size; i++) {
 		// TODO: Try splitting out this if statement?
 		if ((range_start->is_null || column->data[i] >= range_start->value) && (range_end->is_null || column->data[i] < range_end->value)) {
-			posn_vec[result->num_tuples++] = i;
+            posn_vec[result->num_tuples++] = i;
 		}
 	}
 	result->data_type = INT;
@@ -259,6 +260,9 @@ int free_db_operator(DbOperator* dbo) {
     } else if (dbo->type == PRINT) {
         free(dbo->operator_fields.print_operator.generalized_columns);
     }
+    printf("hello1\n");
     free(dbo);
+        printf("hellosdafdsaf2\n");
+
     return 0;
 }
