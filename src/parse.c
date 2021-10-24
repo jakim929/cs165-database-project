@@ -340,6 +340,43 @@ DbOperator* parse_fetch(char* query_command, ClientContext* context, message* se
     }
 }
 
+DbOperator* parse_average(char* query_command, ClientContext* context, message* send_message) {
+    // check for leading '('
+    if (strncmp(query_command, "(", 1) == 0) {
+        query_command++;
+        // parse table input
+        char* gcolumn_name = query_command;
+        int last_char = strlen(gcolumn_name) - 1;
+        if (last_char < 0 || gcolumn_name[last_char] != ')') {
+            return NULL;
+        }
+        // replace final ')' with null-termination character.
+        gcolumn_name[last_char] = '\0';
+        if (send_message->status == INCORRECT_FORMAT) {
+            return NULL;
+        }
+
+        GeneralizedColumn* gcolumn = lookup_gcolumn_by_handle(context, gcolumn_name);
+        // lookup the table and column and make sure it exists. posn_vec needs to be RESULT
+        if (
+            gcolumn == NULL ||
+            gcolumn->column_type != RESULT ||
+            gcolumn->column_pointer.result->data_type != INT
+        ) {
+            send_message->status = OBJECT_NOT_FOUND;
+            return NULL;
+        }
+
+        DbOperator* dbo = malloc(sizeof(DbOperator));
+        dbo->type = AVERAGE;
+        dbo->operator_fields.average_operator.vec_val = gcolumn->column_pointer.result;
+        return dbo;
+    } else {
+        send_message->status = UNKNOWN_COMMAND;
+        return NULL;
+    }
+}
+
 DbOperator* parse_print(char* query_command, ClientContext* context, message* send_message) {
     char* token = NULL;
     // check for leading '('
@@ -480,6 +517,9 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else if (strncmp(query_command, "fetch", 5) == 0) {
         query_command += 5;
         dbo = parse_fetch(query_command, context, send_message);
+    } else if (strncmp(query_command, "avg", 3) == 0) {
+        query_command += 3;
+        dbo = parse_average(query_command, context, send_message);
     } else if (strncmp(query_command, "print", 5) == 0) {
         query_command += 5;
         dbo = parse_print(query_command, context, send_message);

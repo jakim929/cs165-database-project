@@ -8,6 +8,7 @@
 
 char* execute_load_operator(LoadOperator* load_operator);
 char* execute_print_operator(PrintOperator* print_operator);
+Result* execute_average_operator(AverageOperator* average_operator);
 
 /** execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).
@@ -86,7 +87,7 @@ char* execute_db_operator(DbOperator* query) {
         if (select_status.code == OK) {
             return "";
         }
-    }else if (query && query->type == FETCH) {
+    } else if (query && query->type == FETCH) {
         Status fetch_status;
         Result* fetch_result = fetch(
             query->operator_fields.fetch_operator.column,
@@ -105,6 +106,21 @@ char* execute_db_operator(DbOperator* query) {
                 return "";
             }
         }
+    } else if (query && query->type == AVERAGE) {
+        Result* average_result = execute_average_operator(&(query->operator_fields.average_operator));
+        struct GeneralizedColumn gen_column;
+        union GeneralizedColumnPointer gen_column_pointer;
+        if (query->handle != NULL) {
+            gen_column_pointer.result = average_result;
+            gen_column.column_pointer = gen_column_pointer;
+            gen_column.column_type = RESULT;
+            int rflag = add_generalized_column_to_client_context(query->context, &gen_column, query->handle);
+            if (rflag < 0) {
+                printf("wrong\n");
+                return "";
+            }
+        }
+        return "";
     } else if (query && query->type == LOAD) {
         char* load_result = execute_load_operator(&(query->operator_fields.load_operator));
         return load_result;
@@ -154,6 +170,41 @@ Result* select_from_column(Column* column, NullableInt* range_start, NullableInt
 	return result;
 }
 
+Result* execute_average_operator(AverageOperator* average_operator) {
+    Result* result = (Result*) malloc(sizeof(Result));
+    size_t size = average_operator->vec_val->num_tuples;
+    int* data = (int*) average_operator->vec_val->payload;
+    double sum = 0;
+    for (size_t i = 0; i < size; i++) {
+        sum += (double) data[i];
+    }
+    float* result_array = (float*) malloc(sizeof(float));
+    result_array[0] = (float) (sum / ((double) size));
+    result->data_type = FLOAT;
+    result->payload = result_array;
+    result->num_tuples = 1;
+    return result;
+}
+
+char* execute_load_operator(LoadOperator* load_operator) {
+    Status insert_status;
+    int* row_buffer = (int*) malloc(load_operator->table->col_count * sizeof(int));
+    char* line = NULL;
+
+    while ((line = strsep(&(load_operator->load_data), "\n")) != NULL) {
+        size_t col_inserted = 0;
+        char* value = NULL;
+        while ((value = strsep(&line, ",")) != NULL) {
+            row_buffer[col_inserted++] = atoi(value);
+            if (col_inserted == load_operator->table->col_count) {
+                col_inserted = 0;
+                insert_row(load_operator->table, row_buffer, &insert_status);
+            }
+        }
+    }
+    return "";
+}
+
 size_t get_gcolumn_size(GeneralizedColumn* gcolumn) {
     if (gcolumn->column_type == RESULT) {
         return gcolumn->column_pointer.result->num_tuples;
@@ -200,25 +251,6 @@ char* execute_print_operator(PrintOperator* print_operator) {
     }
     buffer[written_so_far - 1] = '\0';
     return buffer;
-}
-
-char* execute_load_operator(LoadOperator* load_operator) {
-    Status insert_status;
-    int* row_buffer = (int*) malloc(load_operator->table->col_count * sizeof(int));
-    char* line = NULL;
-
-    while ((line = strsep(&(load_operator->load_data), "\n")) != NULL) {
-        size_t col_inserted = 0;
-        char* value = NULL;
-        while ((value = strsep(&line, ",")) != NULL) {
-            row_buffer[col_inserted++] = atoi(value);
-            if (col_inserted == load_operator->table->col_count) {
-                col_inserted = 0;
-                insert_row(load_operator->table, row_buffer, &insert_status);
-            }
-        }
-    }
-    return "";
 }
 
 int free_db_operator(DbOperator* dbo) {
