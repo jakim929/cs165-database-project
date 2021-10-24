@@ -34,4 +34,8 @@ echo "running test 2"
 ./server > $STUDENT_OUTPUT_DIR/test02gen.server.debug.out &
 sleep 1
 ./client < ../$REL_TEST_DIR/test02gen.dsl
+echo ""
+echo "running test 2"
+sleep 1
+./client < ../$REL_TEST_DIR/test03gen.dsl
 if pgrep server; then pkill server; fi

@@ -32,15 +32,17 @@
 #include "catalog.h"
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
+#define CONCURRENT_CLIENTS_SIZE 32
 
 /**
  * handle_client(client_socket)
  * This is the execution routine after a client has connected.
  * It will continually listen for messages from the client and execute queries.
  **/
-void handle_client(int client_socket) {
+int handle_client(int client_socket) {
     int done = 0;
     int length = 0;
+    int did_shutdown = 0;
 
     log_info("Connected to socket: %d.\n", client_socket);
 
@@ -75,7 +77,12 @@ void handle_client(int client_socket) {
             DbOperator* query = parse_command(recv_message.payload, &send_message, client_socket, client_context);
             // 2. Handle request
             //    Corresponding database operator is executed over the query
+            
             char* result = execute_db_operator(query);
+            if (query && query->type == SHUTDOWN) {
+                did_shutdown = 1;
+                done = 1;
+            }
 
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
@@ -99,8 +106,7 @@ void handle_client(int client_socket) {
 
     log_info("Connection closed at socket %d!\n", client_socket);
     close(client_socket);
-
-
+    return did_shutdown;
 }
 
 /**
@@ -176,14 +182,22 @@ int main(void)
 
     struct sockaddr_un remote;
     socklen_t t = sizeof(remote);
-    int client_socket = 0;
 
-    if ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) == -1) {
-        log_err("L%d: Failed to accept a new connection.\n", __LINE__);
-        exit(1);
+    int client_socket = 0;
+    int did_shutdown = 0;
+
+
+    while(!did_shutdown && (client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) != -1) {         
+        did_shutdown = handle_client(client_socket);
     }
 
-    handle_client(client_socket);
+    exit(1);
+
+    // if ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) == -1) {
+    //     log_err("L%d: Failed to accept a new connection.\n", __LINE__);
+    //     exit(1);
+    // }
+
 
     return 0;
 }
