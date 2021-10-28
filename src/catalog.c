@@ -62,12 +62,14 @@ Db* unpersist_db(char* db_name) {
 	char* tb_names = (char*) malloc((strlen(db_catalog->table_names) + 1) * sizeof(char));
 	strcpy(tb_names, db_catalog->table_names);
 	
-    char* table_name = strtok_r(db_catalog->table_names, delimiter, &tokenizer);
+    char* table_name = strtok_r(tb_names, delimiter, &tokenizer);
     while(table_name != NULL) {
+		table_catalog_path[0] = '\0';
 		strcat(table_catalog_path, db->base_directory);
 		strcat(table_catalog_path, "/");
 		strcat(table_catalog_path, table_name);
 		strcat(table_catalog_path, ".tbl");
+		printf("curval %s\n", table_catalog_path);
         if (unpersist_tbl(&(db->tables[table_i]), table_catalog_path) < 0) {
             return NULL;
         }
@@ -75,6 +77,7 @@ Db* unpersist_db(char* db_name) {
         table_i++;
     }
 
+	free(tb_names);
     // Don't msync since we don't want to overwrite with strtok yet
     // rflag = msync(db_catalog, sizeof(PersistedDbCatalog), MS_SYNC);
     // if(rflag == -1)
@@ -121,6 +124,7 @@ int unpersist_tbl(Table* tbl, char* tbl_catalog_path) {
         col_name = strtok_r(NULL, delimiter, &tokenizer);
         col_i++;
     }
+	free(col_names);
     if (munmap(tbl_catalog, sizeof(PersistedTableCatalog)) < 0) {
         return -1;
     }

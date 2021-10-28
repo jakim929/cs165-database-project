@@ -58,7 +58,6 @@ int free_generalized_column_handle(GeneralizedColumnHandle* gen_chandle) {
 		free(gen_chandle->generalized_column.column_pointer.result->payload);
 		free(gen_chandle->generalized_column.column_pointer.result);
 	}
-	free(gen_chandle);
 	return 0;
 }
 

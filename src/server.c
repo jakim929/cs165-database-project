@@ -84,15 +84,21 @@ int handle_client(int client_socket) {
                 done = 1;
             }
 
-            if (query) {
-                free_db_operator(query);
-            }
-
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
             strcpy(send_buffer, result);
             send_message.payload = send_buffer;
             send_message.status = OK_WAIT_FOR_RESPONSE;
+
+            if (query) {
+                if (query->type == SHUTDOWN) {
+                    did_shutdown = 1;
+                    done = 1;
+                } else if (query->type == PRINT) {
+                    free(result);
+                }
+                free_db_operator(query);
+            }
             
             // 3. Send status of the received message (OK, UNKNOWN_QUERY, etc)
             if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
@@ -101,7 +107,7 @@ int handle_client(int client_socket) {
             }
 
             // 4. Send response to the request
-            if (send(client_socket, result, send_message.length, 0) == -1) {
+            if (send(client_socket, send_message.payload, send_message.length, 0) == -1) {
                 log_err("Failed to send message.");
                 exit(1);
             }

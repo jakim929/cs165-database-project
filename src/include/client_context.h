@@ -17,6 +17,8 @@ int free_generalized_column_handle(GeneralizedColumnHandle* gen_chandle);
 
 Table* lookup_table(char *name);
 
+Db* lookup_db(char* name);
+
 void lookup_table_and_column(Table** table, Column** column, char* name);
 
 #endif
