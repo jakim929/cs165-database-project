@@ -84,6 +84,10 @@ int handle_client(int client_socket) {
                 done = 1;
             }
 
+            if (query) {
+                free_db_operator(query);
+            }
+
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
             strcpy(send_buffer, result);
@@ -104,6 +108,7 @@ int handle_client(int client_socket) {
         }
     } while (!done);
 
+    free_client_context(client_context);
     log_info("Connection closed at socket %d!\n", client_socket);
     close(client_socket);
     return did_shutdown;

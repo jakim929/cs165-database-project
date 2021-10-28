@@ -12,6 +12,16 @@ ClientContext* initialize_client_context() {
 	return client_context;
 }
 
+int add_result_to_client_context(ClientContext* client_context, Result* result, char* handle) {
+	struct GeneralizedColumn gen_column;
+    union GeneralizedColumnPointer gen_column_pointer;
+	gen_column_pointer.result = result;
+	gen_column.column_pointer = gen_column_pointer;
+	gen_column.column_type = RESULT;
+	int rflag = add_generalized_column_to_client_context(client_context, &gen_column, handle);
+	return rflag;
+}
+
 int add_generalized_column_to_client_context(ClientContext* client_context, GeneralizedColumn* gen_column, char* handle) {
 	if (client_context->chandle_slots == client_context->chandles_in_use) {
 		client_context->chandle_table = (GeneralizedColumnHandle*) realloc(client_context->chandle_table, 2 * client_context->chandle_slots * sizeof(GeneralizedColumnHandle));
@@ -38,6 +48,7 @@ int free_client_context(ClientContext* client_context) {
 	for(int i = 0; i < client_context->chandles_in_use; i++) {
 		free_generalized_column_handle(&(client_context->chandle_table[i]));
 	}
+	free(client_context->chandle_table);
 	free(client_context);
 	return 0;
 }

@@ -340,11 +340,10 @@ DbOperator* parse_fetch(char* query_command, ClientContext* context, message* se
     }
 }
 
-DbOperator* parse_average(char* query_command, ClientContext* context, message* send_message) {
+GeneralizedColumn* parse_single_gcolumn_query(char* query_command, ClientContext* context, message* send_message) {
     // check for leading '('
     if (strncmp(query_command, "(", 1) == 0) {
         query_command++;
-        // parse table input
         char* gcolumn_name = query_command;
         int last_char = strlen(gcolumn_name) - 1;
         if (last_char < 0 || gcolumn_name[last_char] != ')') {
@@ -358,23 +357,52 @@ DbOperator* parse_average(char* query_command, ClientContext* context, message* 
 
         GeneralizedColumn* gcolumn = lookup_gcolumn_by_handle(context, gcolumn_name);
         // lookup the table and column and make sure it exists. posn_vec needs to be RESULT
-        if (
-            gcolumn == NULL ||
-            gcolumn->column_type != RESULT ||
-            gcolumn->column_pointer.result->data_type != INT
-        ) {
+        if (gcolumn == NULL) {
             send_message->status = OBJECT_NOT_FOUND;
             return NULL;
         }
-
-        DbOperator* dbo = malloc(sizeof(DbOperator));
-        dbo->type = AVERAGE;
-        dbo->operator_fields.average_operator.vec_val = gcolumn->column_pointer.result;
-        return dbo;
+        return gcolumn;
     } else {
         send_message->status = UNKNOWN_COMMAND;
         return NULL;
     }
+}
+
+DbOperator* parse_sum(char* query_command, ClientContext* context, message* send_message) {
+    GeneralizedColumn* gcolumn = parse_single_gcolumn_query(query_command, context, send_message);
+    if (gcolumn == NULL) {
+        return NULL;
+    }
+    if (
+        gcolumn->column_type != RESULT ||
+        gcolumn->column_pointer.result->data_type != INT
+    ) {
+        send_message->status = OBJECT_NOT_FOUND;
+        return NULL;
+    }
+    DbOperator* dbo = malloc(sizeof(DbOperator));
+    dbo->type = SUM;
+    dbo->operator_fields.sum_operator.vec_val = gcolumn->column_pointer.result;
+    return dbo;
+}
+
+
+DbOperator* parse_average(char* query_command, ClientContext* context, message* send_message) {
+    GeneralizedColumn* gcolumn = parse_single_gcolumn_query(query_command, context, send_message);
+    if (gcolumn == NULL) {
+        return NULL;
+    }
+    if (
+        gcolumn->column_type != RESULT ||
+        gcolumn->column_pointer.result->data_type != INT
+    ) {
+        send_message->status = OBJECT_NOT_FOUND;
+        return NULL;
+    }
+    DbOperator* dbo = malloc(sizeof(DbOperator));
+    dbo->type = AVERAGE;
+    dbo->operator_fields.average_operator.vec_val = gcolumn->column_pointer.result;
+    return dbo;
 }
 
 DbOperator* parse_print(char* query_command, ClientContext* context, message* send_message) {
@@ -422,13 +450,6 @@ Table* get_table_from_column_names(char* column_names, message* send_message) {
     lookup_table_and_column(&table, &column, first_column_name);
     return table;
 }
-
-// int** initialize_load_columns(size_t col_count, size_t initial_row_count) {
-//     int** load_columns = (int**) malloc(col_count * (sizeof(int*)));
-//     for(size_t i = 0; i < col_count; i++) {
-//         load_columns[i] = (int*) malloc(initial_row_count * sizeof(int));
-//     }
-// }
 
 DbOperator* parse_load(char* query_command, message* send_message) {
     if (strncmp(query_command, "\n", 1) == 0) {
@@ -518,6 +539,9 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         query_command += 5;
         dbo = parse_fetch(query_command, context, send_message);
     } else if (strncmp(query_command, "avg", 3) == 0) {
+        query_command += 3;
+        dbo = parse_average(query_command, context, send_message);
+    } else if (strncmp(query_command, "sum", 3) == 0) {
         query_command += 3;
         dbo = parse_average(query_command, context, send_message);
     } else if (strncmp(query_command, "print", 5) == 0) {

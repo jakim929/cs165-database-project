@@ -5,6 +5,8 @@
 
 ClientContext* initialize_client_context();
 
+int add_result_to_client_context(ClientContext* client_context, Result* result, char* handle);
+
 int add_generalized_column_to_client_context(ClientContext* client_context, GeneralizedColumn* gen_column, char* handle);
 
 GeneralizedColumn* lookup_gcolumn_by_handle(ClientContext* client_context, char* handle);

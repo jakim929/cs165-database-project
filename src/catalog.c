@@ -59,7 +59,7 @@ Db* unpersist_db(char* db_name) {
     char table_catalog_path[MAX_PATH_NAME_SIZE] = "";
     size_t table_i = 0;
 
-	char* tb_names = (char*) malloc(strlen(db_catalog->table_names) * sizeof(char));
+	char* tb_names = (char*) malloc((strlen(db_catalog->table_names) + 1) * sizeof(char));
 	strcpy(tb_names, db_catalog->table_names);
 	
     char* table_name = strtok_r(db_catalog->table_names, delimiter, &tokenizer);
@@ -103,7 +103,7 @@ int unpersist_tbl(Table* tbl, char* tbl_catalog_path) {
     const char delimiter[2] = ",";
     char col_data_path[MAX_PATH_NAME_SIZE] = "";
     size_t col_i = 0;
-	char* col_names = (char*) malloc(strlen(tbl_catalog->column_names) * sizeof(char));
+	char* col_names = (char*) malloc((strlen(tbl_catalog->column_names) + 1) * sizeof(char));
 	strcpy(col_names, tbl_catalog->column_names);
 
     char* col_name = strtok_r(col_names, delimiter, &tokenizer);

@@ -235,6 +235,7 @@ typedef enum OperatorType {
     FETCH,
     PRINT,
     AVERAGE,
+    SUM,
     SHUTDOWN,
 } OperatorType;
 
@@ -302,6 +303,10 @@ typedef struct AverageOperator {
     Result* vec_val;
 } AverageOperator;
 
+typedef struct SumOperator {
+    Result* vec_val;
+} SumOperator;
+
 typedef struct PrintOperator {
     GeneralizedColumn** generalized_columns;
     int generalized_columns_count;
@@ -318,6 +323,7 @@ typedef union OperatorFields {
     PrintOperator print_operator;
     FetchOperator fetch_operator;
     AverageOperator average_operator;
+    SumOperator sum_operator;
 } OperatorFields;
 /*
  * DbOperator holds the following fields:

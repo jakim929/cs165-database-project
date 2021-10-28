@@ -1,6 +1,7 @@
 #define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "cs165_api.h"
 #include "utils.h"
@@ -8,6 +9,7 @@
 
 char* execute_load_operator(LoadOperator* load_operator);
 char* execute_print_operator(PrintOperator* print_operator);
+Result* execute_sum_operator(SumOperator* sum_operator);
 Result* execute_average_operator(AverageOperator* average_operator);
 
 /** execute_DbOperator takes as input the DbOperator and executes the query.
@@ -72,13 +74,8 @@ char* execute_db_operator(DbOperator* query) {
             &(query->operator_fields.select_operator.range_end),
             &select_status
         );
-        struct GeneralizedColumn gen_column;
-        union GeneralizedColumnPointer gen_column_pointer;
         if (query->handle != NULL) {
-            gen_column_pointer.result = select_result;
-            gen_column.column_pointer = gen_column_pointer;
-            gen_column.column_type = RESULT;
-            int rflag = add_generalized_column_to_client_context(query->context, &gen_column, query->handle);
+            int rflag = add_result_to_client_context(query->context, select_result, query->handle);
             if (rflag < 0) {
                 select_status.code = ERROR;
                 return "";
@@ -94,13 +91,8 @@ char* execute_db_operator(DbOperator* query) {
             query->operator_fields.fetch_operator.posn_vec,
             &fetch_status
         );
-        struct GeneralizedColumn gen_column;
-        union GeneralizedColumnPointer gen_column_pointer;
         if (query->handle != NULL) {
-            gen_column_pointer.result = fetch_result;
-            gen_column.column_pointer = gen_column_pointer;
-            gen_column.column_type = RESULT;
-            int rflag = add_generalized_column_to_client_context(query->context, &gen_column, query->handle);
+            int rflag = add_result_to_client_context(query->context, fetch_result, query->handle);
             if (rflag < 0) {
                 fetch_status.code = ERROR;
                 return "";
@@ -108,13 +100,17 @@ char* execute_db_operator(DbOperator* query) {
         }
     } else if (query && query->type == AVERAGE) {
         Result* average_result = execute_average_operator(&(query->operator_fields.average_operator));
-        struct GeneralizedColumn gen_column;
-        union GeneralizedColumnPointer gen_column_pointer;
         if (query->handle != NULL) {
-            gen_column_pointer.result = average_result;
-            gen_column.column_pointer = gen_column_pointer;
-            gen_column.column_type = RESULT;
-            int rflag = add_generalized_column_to_client_context(query->context, &gen_column, query->handle);
+            int rflag = add_result_to_client_context(query->context, average_result, query->handle);
+            if (rflag < 0) {
+                return "";
+            }
+        }
+        return "";
+    } else if (query && query->type == SUM) {
+        Result* sum_result = execute_sum_operator(&(query->operator_fields.sum_operator));
+        if (query->handle != NULL) {
+            int rflag = add_result_to_client_context(query->context, sum_result, query->handle);
             if (rflag < 0) {
                 return "";
             }
@@ -133,7 +129,6 @@ char* execute_db_operator(DbOperator* query) {
         }
         return "";
     }
-    free_db_operator(query);
     return "";
 }
 
@@ -172,6 +167,10 @@ Result* select_from_column(Column* column, NullableInt* range_start, NullableInt
 }
 
 Result* execute_average_operator(AverageOperator* average_operator) {
+    clock_t start, end;
+    double cpu_time_used;
+    start = clock();
+
     Result* result = (Result*) malloc(sizeof(Result));
     size_t size = average_operator->vec_val->num_tuples;
     int* data = (int*) average_operator->vec_val->payload;
@@ -179,9 +178,30 @@ Result* execute_average_operator(AverageOperator* average_operator) {
     for (size_t i = 0; i < size; i++) {
         sum += (double) data[i];
     }
+    end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+
+    printf("summing took %fms\n", cpu_time_used);
+    
     float* result_array = (float*) malloc(sizeof(float));
     result_array[0] = (float) (sum / ((double) size));
     result->data_type = FLOAT;
+    result->payload = result_array;
+    result->num_tuples = 1;
+    return result;
+}
+
+Result* execute_sum_operator(SumOperator* sum_operator) {
+    Result* result = (Result*) malloc(sizeof(Result));
+    size_t size = sum_operator->vec_val->num_tuples;
+    int* data = (int*) sum_operator->vec_val->payload;
+    int sum = 0;
+    for (size_t i = 0; i < size; i++) {
+        sum += data[i];
+    }
+    int* result_array = (int*) malloc(sizeof(int));
+    result_array[0] = sum;
+    result->data_type = INT;
     result->payload = result_array;
     result->num_tuples = 1;
     return result;
@@ -260,9 +280,6 @@ int free_db_operator(DbOperator* dbo) {
     } else if (dbo->type == PRINT) {
         free(dbo->operator_fields.print_operator.generalized_columns);
     }
-    printf("hello1\n");
     free(dbo);
-        printf("hellosdafdsaf2\n");
-
     return 0;
 }
