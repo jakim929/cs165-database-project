@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <limits.h>
 
 #include "cs165_api.h"
 #include "utils.h"
@@ -11,6 +12,8 @@ char* execute_load_operator(LoadOperator* load_operator);
 char* execute_print_operator(PrintOperator* print_operator);
 Result* execute_sum_operator(SumOperator* sum_operator);
 Result* execute_average_operator(AverageOperator* average_operator);
+Result* execute_min_operator(MinOperator* min_operator);
+Result* execute_max_operator(MaxOperator* max_operator);
 
 /** execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).
@@ -116,6 +119,24 @@ char* execute_db_operator(DbOperator* query) {
             }
         }
         return "";
+    } else if (query && query->type == MIN) {
+        Result* min_result = execute_min_operator(&(query->operator_fields.min_operator));
+        if (query->handle != NULL) {
+            int rflag = add_result_to_client_context(query->context, min_result, query->handle);
+            if (rflag < 0) {
+                return "";
+            }
+        }
+        return "";
+    } else if (query && query->type == MAX) {
+        Result* max_result = execute_max_operator(&(query->operator_fields.max_operator));
+        if (query->handle != NULL) {
+            int rflag = add_result_to_client_context(query->context, max_result, query->handle);
+            if (rflag < 0) {
+                return "";
+            }
+        }
+        return "";
     } else if (query && query->type == LOAD) {
         char* load_result = execute_load_operator(&(query->operator_fields.load_operator));
         return load_result;
@@ -167,43 +188,70 @@ Result* select_from_column(Column* column, NullableInt* range_start, NullableInt
 }
 
 Result* execute_average_operator(AverageOperator* average_operator) {
+    size_t size = average_operator->val_vec->num_tuples;
+    int* data = (int*) average_operator->val_vec->payload;
+    double sum = 0;
+
     clock_t start, end;
     double cpu_time_used;
     start = clock();
-
-    Result* result = (Result*) malloc(sizeof(Result));
-    size_t size = average_operator->vec_val->num_tuples;
-    int* data = (int*) average_operator->vec_val->payload;
-    double sum = 0;
     for (size_t i = 0; i < size; i++) {
         sum += (double) data[i];
     }
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-
     printf("summing took %fms\n", cpu_time_used);
-    
-    float* result_array = (float*) malloc(sizeof(float));
-    result_array[0] = (float) (sum / ((double) size));
+
+    Result* result = (Result*) malloc(sizeof(Result));
     result->data_type = FLOAT;
-    result->payload = result_array;
     result->num_tuples = 1;
+    result->payload = malloc(sizeof(float));
+    ((float*) result->payload)[0] = (float) (sum / ((double) size));
     return result;
 }
 
 Result* execute_sum_operator(SumOperator* sum_operator) {
-    Result* result = (Result*) malloc(sizeof(Result));
-    size_t size = sum_operator->vec_val->num_tuples;
-    int* data = (int*) sum_operator->vec_val->payload;
+    size_t size = sum_operator->val_vec->num_tuples;
+    int* data = (int*) sum_operator->val_vec->payload;
     int sum = 0;
     for (size_t i = 0; i < size; i++) {
         sum += data[i];
     }
-    int* result_array = (int*) malloc(sizeof(int));
-    result_array[0] = sum;
+    Result* result = (Result*) malloc(sizeof(Result));
     result->data_type = INT;
-    result->payload = result_array;
     result->num_tuples = 1;
+    result->payload = malloc(sizeof(int));
+    ((int*) result->payload)[0] = sum;
+    return result;
+}
+
+Result* execute_max_operator(MaxOperator* max_operator) {
+    size_t size = max_operator->val_vec->num_tuples;
+    int* data = (int*) max_operator->val_vec->payload;
+    int max = INT_MIN;
+    for (size_t i = 0; i < size; i++) {
+        max = data[i] > max ? data[i] : max;
+    }
+    Result* result = (Result*) malloc(sizeof(Result));
+    result->data_type = INT;
+    result->num_tuples = 1;
+    result->payload = malloc(sizeof(int));
+    ((int*) result->payload)[0] = max;
+    return result;
+}
+
+Result* execute_min_operator(MinOperator* min_operator) {
+    size_t size = min_operator->val_vec->num_tuples;
+    int* data = (int*) min_operator->val_vec->payload;
+    int min = INT_MAX;
+    for (size_t i = 0; i < size; i++) {
+        min = data[i] < min ? data[i] : min;
+    }
+    Result* result = (Result*) malloc(sizeof(Result));
+    result->data_type = INT;
+    result->num_tuples = 1;
+    result->payload = malloc(sizeof(int));
+    ((int*) result->payload)[0] = min;
     return result;
 }
 

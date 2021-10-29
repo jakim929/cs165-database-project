@@ -369,40 +369,61 @@ GeneralizedColumn* parse_single_gcolumn_query(char* query_command, ClientContext
     }
 }
 
-DbOperator* parse_sum(char* query_command, ClientContext* context, message* send_message) {
+GeneralizedColumn* parse_single_int_result_query(char* query_command, ClientContext* context, message* send_message) {
     GeneralizedColumn* gcolumn = parse_single_gcolumn_query(query_command, context, send_message);
-    if (gcolumn == NULL) {
-        return NULL;
-    }
     if (
+        gcolumn == NULL ||
         gcolumn->column_type != RESULT ||
         gcolumn->column_pointer.result->data_type != INT
     ) {
         send_message->status = OBJECT_NOT_FOUND;
         return NULL;
     }
+    return gcolumn;
+}
+
+DbOperator* parse_sum(char* query_command, ClientContext* context, message* send_message) {
+    GeneralizedColumn* gcolumn = parse_single_int_result_query(query_command, context, send_message);
+    if (gcolumn == NULL) {
+        return NULL;
+    }
     DbOperator* dbo = malloc(sizeof(DbOperator));
     dbo->type = SUM;
-    dbo->operator_fields.sum_operator.vec_val = gcolumn->column_pointer.result;
+    dbo->operator_fields.sum_operator.val_vec = gcolumn->column_pointer.result;
     return dbo;
 }
 
 
 DbOperator* parse_average(char* query_command, ClientContext* context, message* send_message) {
-    GeneralizedColumn* gcolumn = parse_single_gcolumn_query(query_command, context, send_message);
+    GeneralizedColumn* gcolumn = parse_single_int_result_query(query_command, context, send_message);
     if (gcolumn == NULL) {
-        return NULL;
-    }
-    if (
-        gcolumn->column_type != RESULT ||
-        gcolumn->column_pointer.result->data_type != INT
-    ) {
-        send_message->status = OBJECT_NOT_FOUND;
         return NULL;
     }
     DbOperator* dbo = malloc(sizeof(DbOperator));
     dbo->type = AVERAGE;
-    dbo->operator_fields.average_operator.vec_val = gcolumn->column_pointer.result;
+    dbo->operator_fields.average_operator.val_vec = gcolumn->column_pointer.result;
+    return dbo;
+}
+
+DbOperator* parse_min(char* query_command, ClientContext* context, message* send_message) {
+    GeneralizedColumn* gcolumn = parse_single_int_result_query(query_command, context, send_message);
+    if (gcolumn == NULL) {
+        return NULL;
+    }
+    DbOperator* dbo = malloc(sizeof(DbOperator));
+    dbo->type = MIN;
+    dbo->operator_fields.min_operator.val_vec = gcolumn->column_pointer.result;
+    return dbo;
+}
+
+DbOperator* parse_max(char* query_command, ClientContext* context, message* send_message) {
+    GeneralizedColumn* gcolumn = parse_single_int_result_query(query_command, context, send_message);
+    if (gcolumn == NULL) {
+        return NULL;
+    }
+    DbOperator* dbo = malloc(sizeof(DbOperator));
+    dbo->type = MAX;
+    dbo->operator_fields.max_operator.val_vec = gcolumn->column_pointer.result;
     return dbo;
 }
 
@@ -545,6 +566,12 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else if (strncmp(query_command, "sum", 3) == 0) {
         query_command += 3;
         dbo = parse_sum(query_command, context, send_message);
+    } else if (strncmp(query_command, "min", 3) == 0) {
+        query_command += 3;
+        dbo = parse_min(query_command, context, send_message);
+    } else if (strncmp(query_command, "max", 3) == 0) {
+        query_command += 3;
+        dbo = parse_max(query_command, context, send_message);
     } else if (strncmp(query_command, "print", 5) == 0) {
         query_command += 5;
         dbo = parse_print(query_command, context, send_message);
