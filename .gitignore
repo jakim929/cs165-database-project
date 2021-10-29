@@ -39,3 +39,4 @@ catalog
 test_load.csv
 status.current_container_id
 .vscode
+outputs
