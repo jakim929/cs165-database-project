@@ -14,6 +14,8 @@ Result* execute_sum_operator(SumOperator* sum_operator);
 Result* execute_average_operator(AverageOperator* average_operator);
 Result* execute_min_operator(MinOperator* min_operator);
 Result* execute_max_operator(MaxOperator* max_operator);
+Result* execute_add_operator(AddOperator* add_operator);
+Result* execute_sub_operator(SubOperator* sub_operator);
 
 /** execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).
@@ -137,6 +139,24 @@ char* execute_db_operator(DbOperator* query) {
             }
         }
         return "";
+    } else if (query && query->type == ADD) {
+        Result* result = execute_add_operator(&(query->operator_fields.add_operator));
+        if (query->handle != NULL) {
+            int rflag = add_result_to_client_context(query->context, result, query->handle);
+            if (rflag < 0) {
+                return "";
+            }
+        }
+        return "";
+    } else if (query && query->type == SUB) {
+        Result* result = execute_sub_operator(&(query->operator_fields.sub_operator));
+        if (query->handle != NULL) {
+            int rflag = add_result_to_client_context(query->context, result, query->handle);
+            if (rflag < 0) {
+                return "";
+            }
+        }
+        return "";
     } else if (query && query->type == LOAD) {
         char* load_result = execute_load_operator(&(query->operator_fields.load_operator));
         return load_result;
@@ -252,6 +272,44 @@ Result* execute_min_operator(MinOperator* min_operator) {
     result->num_tuples = 1;
     result->payload = malloc(sizeof(int));
     ((int*) result->payload)[0] = min;
+    return result;
+}
+
+Result* execute_add_operator(AddOperator* add_operator) {
+    // Assumes both vectors are same size
+    size_t size = add_operator->val_vec1->num_tuples;
+    int* data1 = (int*) add_operator->val_vec1->payload;
+    int* data2 = (int*) add_operator->val_vec2->payload;
+
+    int* add_result = (int*) malloc(sizeof(int) * size);
+
+    for (size_t i = 0; i < size; i++) {
+        add_result[i] = data1[i] + data2[i];
+    }
+    
+    Result* result = (Result*) malloc(sizeof(Result));
+    result->data_type = INT;
+    result->num_tuples = size;
+    result->payload = (void*) add_result;
+    return result;
+}
+
+Result* execute_sub_operator(SubOperator* sub_operator) {
+    // Assumes both vectors are same size
+    size_t size = sub_operator->val_vec1->num_tuples;
+    int* data1 = (int*) sub_operator->val_vec1->payload;
+    int* data2 = (int*) sub_operator->val_vec2->payload;
+
+    int* sub_result = (int*) malloc(sizeof(int) * size);
+
+    for (size_t i = 0; i < size; i++) {
+        sub_result[i] = data1[i] - data2[i];
+    }
+    
+    Result* result = (Result*) malloc(sizeof(Result));
+    result->data_type = INT;
+    result->num_tuples = size;
+    result->payload = (void*) sub_result;
     return result;
 }
 

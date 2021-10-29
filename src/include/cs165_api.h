@@ -238,6 +238,8 @@ typedef enum OperatorType {
     SUM,
     MAX,
     MIN,
+    ADD,
+    SUB,
     SHUTDOWN,
 } OperatorType;
 
@@ -317,6 +319,16 @@ typedef struct MinOperator {
     Result* val_vec;
 } MinOperator;
 
+typedef struct AddOperator {
+    Result* val_vec1;
+    Result* val_vec2;
+} AddOperator;
+
+typedef struct SubOperator {
+    Result* val_vec1;
+    Result* val_vec2;
+} SubOperator;
+
 typedef struct PrintOperator {
     GeneralizedColumn** generalized_columns;
     int generalized_columns_count;
@@ -336,6 +348,8 @@ typedef union OperatorFields {
     SumOperator sum_operator;
     MaxOperator max_operator;
     MinOperator min_operator;
+    AddOperator add_operator;
+    SubOperator sub_operator;
 } OperatorFields;
 /*
  * DbOperator holds the following fields:

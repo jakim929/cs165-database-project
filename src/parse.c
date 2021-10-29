@@ -341,6 +341,89 @@ DbOperator* parse_fetch(char* query_command, ClientContext* context, message* se
     }
 }
 
+int parse_two_gcolumn_query(GeneralizedColumn** gcolumn1, GeneralizedColumn** gcolumn2, char* query_command, ClientContext* context, message* send_message) {
+    // check for leading '('
+    if (strncmp(query_command, "(", 1) == 0) {
+        query_command++;
+        char** command_index = &query_command;
+        char* gcolumn1_name = next_token(command_index, &send_message->status);
+        char* gcolumn2_name = next_token(command_index, &send_message->status);
+        int last_char = strlen(gcolumn2_name) - 1;
+        if (last_char < 0 || gcolumn2_name[last_char] != ')') {
+            return -1;
+        }
+        // replace final ')' with null-termination character.
+        gcolumn2_name[last_char] = '\0';
+        if (send_message->status == INCORRECT_FORMAT) {
+            return -1;
+        }
+
+        *gcolumn1 = lookup_gcolumn_by_handle(context, gcolumn1_name);
+        *gcolumn2 = lookup_gcolumn_by_handle(context, gcolumn2_name);
+
+        if (
+            *gcolumn1 == NULL ||
+            *gcolumn2 == NULL
+        ) {
+            send_message->status = OBJECT_NOT_FOUND;
+            return -1;
+        }
+
+        return 0;
+    } else {
+        send_message->status = UNKNOWN_COMMAND;
+        return -1;
+    }
+}
+
+int parse_two_int_result_query(Result** result1, Result** result2, char* query_command, ClientContext* context, message* send_message) {
+    GeneralizedColumn* gcolumn1;
+    GeneralizedColumn* gcolumn2;
+    if (parse_two_gcolumn_query(&gcolumn1, &gcolumn2, query_command, context, send_message) < 0) {
+        return -1;
+    }
+    if (
+        gcolumn1->column_type != RESULT ||
+        gcolumn1->column_pointer.result->data_type != INT ||
+        gcolumn2->column_type != RESULT ||
+        gcolumn2->column_pointer.result->data_type != INT
+    ) {
+        send_message->status = OBJECT_NOT_FOUND;
+        return -1;
+    }
+    *result1 = gcolumn1->column_pointer.result;
+    *result2 = gcolumn2->column_pointer.result;
+    return 0;
+}
+
+DbOperator* parse_add(char* query_command, ClientContext* context, message* send_message) {
+    Result* result1;
+    Result* result2;
+    if (parse_two_int_result_query(&result1, &result2, query_command, context, send_message)) {
+        return NULL;
+    }
+
+    DbOperator* dbo = malloc(sizeof(DbOperator));
+    dbo->type = ADD;
+    dbo->operator_fields.add_operator.val_vec1 = result1;
+    dbo->operator_fields.add_operator.val_vec2 = result2;
+    return dbo;
+}
+
+DbOperator* parse_sub(char* query_command, ClientContext* context, message* send_message) {
+    Result* result1;
+    Result* result2;
+    if (parse_two_int_result_query(&result1, &result2, query_command, context, send_message)) {
+        return NULL;
+    }
+
+    DbOperator* dbo = malloc(sizeof(DbOperator));
+    dbo->type = SUB;
+    dbo->operator_fields.sub_operator.val_vec1 = result1;
+    dbo->operator_fields.sub_operator.val_vec2 = result2;
+    return dbo;
+}
+
 GeneralizedColumn* parse_single_gcolumn_query(char* query_command, ClientContext* context, message* send_message) {
     // check for leading '('
     if (strncmp(query_command, "(", 1) == 0) {
@@ -572,6 +655,12 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else if (strncmp(query_command, "max", 3) == 0) {
         query_command += 3;
         dbo = parse_max(query_command, context, send_message);
+    } else if (strncmp(query_command, "add", 3) == 0) {
+        query_command += 3;
+        dbo = parse_add(query_command, context, send_message);
+    } else if (strncmp(query_command, "sub", 3) == 0) {
+        query_command += 3;
+        dbo = parse_sub(query_command, context, send_message);
     } else if (strncmp(query_command, "print", 5) == 0) {
         query_command += 5;
         dbo = parse_print(query_command, context, send_message);
