@@ -69,7 +69,6 @@ Db* unpersist_db(char* db_name) {
 		strcat(table_catalog_path, "/");
 		strcat(table_catalog_path, table_name);
 		strcat(table_catalog_path, ".tbl");
-		printf("curval %s\n", table_catalog_path);
         if (unpersist_tbl(&(db->tables[table_i]), table_catalog_path) < 0) {
             return NULL;
         }

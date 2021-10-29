@@ -544,7 +544,7 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         dbo = parse_average(query_command, context, send_message);
     } else if (strncmp(query_command, "sum", 3) == 0) {
         query_command += 3;
-        dbo = parse_average(query_command, context, send_message);
+        dbo = parse_sum(query_command, context, send_message);
     } else if (strncmp(query_command, "print", 5) == 0) {
         query_command += 5;
         dbo = parse_print(query_command, context, send_message);
