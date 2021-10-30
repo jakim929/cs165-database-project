@@ -28,7 +28,9 @@ machine please look into this as a a source of error. */
 #include "message.h"
 #include "utils.h"
 
-#define DEFAULT_STDIN_BUFFER_SIZE 8192
+#define DEFAULT_STDIN_BUFFER_SIZE 1024
+#define MAX_FILE_LINE_SIZE 1024
+#define MAX_LOAD_PAYLOAD_SIZE 16384
 
 /**
  * connect_client()
@@ -59,6 +61,47 @@ int connect_client() {
 
     log_info("-- Client connected at socket: %d.\n", client_socket);
     return client_socket;
+}
+
+void send_message_to_server(int client_socket, message* send_message, message* recv_message) {
+    int len = 0;
+
+    // Send the message_header, which tells server payload size
+    if (send(client_socket, send_message, sizeof(message), 0) == -1) {
+        log_err("Failed to send message header.");
+        exit(1);
+    }
+
+    // Send the payload (query) to server
+    if (send(client_socket, send_message->payload, send_message->length, 0) == -1) {
+        log_err("Failed to send query payload.");
+        exit(1);
+    }
+
+    // Always wait for server response (even if it is just an OK message)
+    if ((len = recv(client_socket, recv_message, sizeof(message), 0)) > 0) {
+        if ((recv_message->status == OK_WAIT_FOR_RESPONSE || recv_message->status == OK_DONE) &&
+            (int) recv_message->length > 0) {
+            // Calculate number of bytes in response package
+            int num_bytes = (int) recv_message->length;
+            char payload[num_bytes + 1];
+
+            // Receive the payload and print it out
+            if ((len = recv(client_socket, payload, num_bytes, 0)) > 0) {
+                payload[num_bytes] = '\0';
+                printf("%s\n", payload);
+            }
+        }
+    }
+    else {
+        if (len < 0) {
+            log_err("Failed to receive message.");
+        }
+        else {
+            log_info("-- Server closed connection\n");
+        }
+        exit(1);
+    }
 }
 
 /**
@@ -107,47 +150,65 @@ int main(void)
         send_message.length = strlen(read_buffer);
         if (send_message.length > 1) {
             if (strncmp(read_buffer, "load", 4) == 0) {
-                char file_name[MAX_PATH_NAME_SIZE];
+                char file_name[MAX_PATH_NAME_SIZE] = "";
                 strcpy(file_name, trim_newline(trim_parenthesis(trim_quotes(read_buffer + 4))));
-                send_message.payload[4] = '\n';
-                size_t file_size = read_file_to_buffer(send_message.payload + 5, file_name);
-                send_message.length = strlen(send_message.payload);
-            }
-            // Send the message_header, which tells server payload size
-            if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
-                log_err("Failed to send message header.");
-                exit(1);
-            }
 
-            // Send the payload (query) to server
-            if (send(client_socket, send_message.payload, send_message.length, 0) == -1) {
-                log_err("Failed to send query payload.");
-                exit(1);
-            }
+                FILE* fp = fopen(file_name, "r");
+                if (fp == NULL) {
+                    log_err("file [%s] not found.\n", file_name);
+                    fclose(fp);
+                    break;
+                }
 
-            // Always wait for server response (even if it is just an OK message)
-            if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {
-                if ((recv_message.status == OK_WAIT_FOR_RESPONSE || recv_message.status == OK_DONE) &&
-                    (int) recv_message.length > 0) {
-                    // Calculate number of bytes in response package
-                    int num_bytes = (int) recv_message.length;
-                    char payload[num_bytes + 1];
+                size_t line_buffer_size = MAX_FILE_LINE_SIZE;
+                char* line_buffer = (char*) malloc(sizeof(char) * line_buffer_size);
 
-                    // Receive the payload and print it out
-                    if ((len = recv(client_socket, payload, num_bytes, 0)) > 0) {
-                        payload[num_bytes] = '\0';
-                        printf("%s\n", payload);
+                // load\n and column names, will be appended to every sent chunk
+                char load_header[MAX_FILE_LINE_SIZE + 5] = "load\n";
+                
+                if (getline(&line_buffer, &line_buffer_size, fp) == -1) {
+                    log_err("file incorrect format.\n");
+                    fclose(fp);
+                    free(line_buffer);
+                    break;
+                }
+                strcpy(load_header + 5, line_buffer);
+
+                char load_payload[MAX_LOAD_PAYLOAD_SIZE] = "";
+
+                strcat(load_payload, load_header);
+                size_t header_size = strlen(load_header);
+                size_t payload_size = header_size;
+                ssize_t read_size;
+
+                // ADD BUFFER PER LINE
+
+                while ((read_size = getline(&line_buffer, &line_buffer_size, fp)) != -1) {
+                    payload_size += read_size;
+                    strcat(load_payload, line_buffer);
+
+                    // Can't read another line into payload buffer. Send current payload
+                    if (MAX_LOAD_PAYLOAD_SIZE - payload_size < line_buffer_size) {
+                        send_message.payload = load_payload;
+                        send_message.length = strlen(load_payload) + 1;
+                        send_message_to_server(client_socket, &send_message, &recv_message);
+                        
+                        payload_size = header_size;
+                        load_payload[header_size] = '\0';
                     }
                 }
-            }
-            else {
-                if (len < 0) {
-                    log_err("Failed to receive message.");
+                if (payload_size > header_size) {
+                    send_message.payload = load_payload;
+                    send_message.length = strlen(load_payload) + 1;
+                    send_message_to_server(client_socket, &send_message, &recv_message);
                 }
-                else {
-		            log_info("-- Server closed connection\n");
-		        }
-                exit(1);
+
+                fclose(fp);
+                free(line_buffer);
+                // Return message buffer to original buffer;
+                send_message.payload = read_buffer;
+            } else {
+                send_message_to_server(client_socket, &send_message, &recv_message);
             }
         }
     }
