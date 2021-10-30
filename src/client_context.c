@@ -22,6 +22,16 @@ int add_result_to_client_context(ClientContext* client_context, Result* result, 
 	return rflag;
 }
 
+int add_column_to_client_context(ClientContext* client_context, Column* column, char* handle) {
+	struct GeneralizedColumn gen_column;
+    union GeneralizedColumnPointer gen_column_pointer;
+	gen_column_pointer.column = column;
+	gen_column.column_pointer = gen_column_pointer;
+	gen_column.column_type = COLUMN;
+	int rflag = add_generalized_column_to_client_context(client_context, &gen_column, handle);
+	return rflag;
+}
+
 int add_generalized_column_to_client_context(ClientContext* client_context, GeneralizedColumn* gen_column, char* handle) {
 	GeneralizedColumnHandle* existing_gchandle = lookup_gchandle_by_handle(client_context, handle);
 	if (existing_gchandle != NULL) {
@@ -30,7 +40,6 @@ int add_generalized_column_to_client_context(ClientContext* client_context, Gene
 		existing_gchandle->generalized_column.column_pointer = gen_column->column_pointer;
 		return 0;
 	}
-	printf("creating new! %s \n", handle);
 	if (client_context->chandle_slots == client_context->chandles_in_use) {
 		client_context->chandle_table = (GeneralizedColumnHandle*) realloc(client_context->chandle_table, 2 * client_context->chandle_slots * sizeof(GeneralizedColumnHandle));
 		client_context->chandle_slots *= 2;
@@ -51,10 +60,28 @@ GeneralizedColumnHandle* lookup_gchandle_by_handle(ClientContext* client_context
 	return NULL;
 }
 
+int get_number_of_dots(char* str) {
+	int number_of_dots = 0;
+	char *dot = strchr(str,'.');
+  	while (dot != NULL) {
+		number_of_dots++;
+		dot = strchr(dot+1, '.');
+	}
+	return number_of_dots;
+}
+
 // TODO optimize lookup with hash tables
 GeneralizedColumn* lookup_gcolumn_by_handle(ClientContext* client_context, char* handle) {
 	GeneralizedColumnHandle* gchandle = lookup_gchandle_by_handle(client_context, handle);
 	if (gchandle == NULL) {
+		// May be a column name
+		if (get_number_of_dots(handle) == 2) {
+			Column* column = lookup_column(handle);
+			if (column != NULL) {
+				add_column_to_client_context(client_context, column, handle);
+				return lookup_gcolumn_by_handle(client_context, handle);
+			}
+		}
 		return NULL;
 	}
 	return &(gchandle->generalized_column);
@@ -142,8 +169,10 @@ Table* lookup_table(char *name) {
 
 // TODO: LOW PRI: Maybe update with hashtable implementation
 Column* lookup_column(char *name) {
+	char name_copy[strlen(name) + 1];
+	strcpy(name_copy, name);
 	const char delimiter[2] = ".";
-	char* db_name = strtok(name, delimiter);
+	char* db_name = strtok(name_copy, delimiter);
     char* table_name = strtok(NULL, delimiter);
 	char* column_name = strtok(NULL, delimiter);
 

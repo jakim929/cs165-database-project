@@ -440,6 +440,9 @@ GeneralizedColumn* parse_single_gcolumn_query(char* query_command, ClientContext
         }
 
         GeneralizedColumn* gcolumn = lookup_gcolumn_by_handle(context, gcolumn_name);
+        // RIGHTNOW LOOKUP for TABLE column names!
+
+
         // lookup the table and column and make sure it exists. posn_vec needs to be RESULT
         if (gcolumn == NULL) {
             send_message->status = OBJECT_NOT_FOUND;
@@ -472,7 +475,7 @@ DbOperator* parse_sum(char* query_command, ClientContext* context, message* send
     }
     DbOperator* dbo = malloc(sizeof(DbOperator));
     dbo->type = SUM;
-    dbo->operator_fields.sum_operator.val_vec = gcolumn->column_pointer.result;
+    dbo->operator_fields.sum_operator.val_vec = gcolumn;
     return dbo;
 }
 

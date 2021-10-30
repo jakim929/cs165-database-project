@@ -308,7 +308,7 @@ typedef struct AverageOperator {
 } AverageOperator;
 
 typedef struct SumOperator {
-    Result* val_vec;
+    GeneralizedColumn* val_vec;
 } SumOperator;
 
 typedef struct MaxOperator {
@@ -381,8 +381,6 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *status
 Column* create_column(Table *table, char *name, bool sorted, Status *ret_status);
 
 void insert_row(Table *table, int* values, Status *ret_status);
-
-Result* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status);
 
 Result* fetch(Column* val_vec, Result* posn_vec, Status* ret_status);
 

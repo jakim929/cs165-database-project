@@ -10,6 +10,7 @@
 
 char* execute_load_operator(LoadOperator* load_operator);
 char* execute_print_operator(PrintOperator* print_operator);
+Result* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status);
 Result* execute_sum_operator(SumOperator* sum_operator);
 Result* execute_average_operator(AverageOperator* average_operator);
 Result* execute_min_operator(MinOperator* min_operator);
@@ -231,8 +232,19 @@ Result* execute_average_operator(AverageOperator* average_operator) {
 }
 
 Result* execute_sum_operator(SumOperator* sum_operator) {
-    size_t size = sum_operator->val_vec->num_tuples;
-    int* data = (int*) sum_operator->val_vec->payload;
+    size_t size;
+    int* data;
+    if (sum_operator->val_vec->column_type == RESULT) {
+        Result* val_vec_result = sum_operator->val_vec->column_pointer.result;
+        size = val_vec_result->num_tuples;
+        data = (int*) val_vec_result->payload;
+    } else {
+        // sum_operator->val_vec->column_type == COLUMN
+        Column* val_vec_col = sum_operator->val_vec->column_pointer.column;
+        size = val_vec_col->size;
+        data = (int*) val_vec_col->data;
+    }
+
     int sum = 0;
     for (size_t i = 0; i < size; i++) {
         sum += data[i];

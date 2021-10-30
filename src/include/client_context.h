@@ -21,6 +21,8 @@ int free_generalized_column(GeneralizedColumn* gcolumn);
 
 Table* lookup_table(char *name);
 
+Column* lookup_column(char *name);
+
 Db* lookup_db(char* name);
 
 void lookup_table_and_column(Table** table, Column** column, char* name);
