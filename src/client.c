@@ -65,7 +65,6 @@ int connect_client() {
 
 void send_message_to_server(int client_socket, message* send_message, message* recv_message) {
     int len = 0;
-
     // Send the message_header, which tells server payload size
     if (send(client_socket, send_message, sizeof(message), 0) == -1) {
         log_err("Failed to send message header.");

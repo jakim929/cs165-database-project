@@ -43,7 +43,7 @@ SOFTWARE.
 #define INITIAL_COLUMN_CAPACITY 1024
 
 #define INITIAL_PRINT_OPERATOR_COLUMNS_CAPACITY 32
-#define INITIAL_PRINT_OPERATOR_BUFFER_SIZE 8192
+#define INITIAL_PRINT_OPERATOR_BUFFER_SIZE 81920
 
 /**
  * EXTRA
@@ -397,4 +397,3 @@ char* execute_print_operator(PrintOperator* print_operator);
 int free_db_operator(DbOperator* dbo);
 
 #endif /* CS165_H */
-

@@ -466,7 +466,7 @@ GeneralizedColumn* parse_single_int_result_query(char* query_command, ClientCont
 }
 
 DbOperator* parse_sum(char* query_command, ClientContext* context, message* send_message) {
-    GeneralizedColumn* gcolumn = parse_single_int_result_query(query_command, context, send_message);
+    GeneralizedColumn* gcolumn = parse_single_gcolumn_query(query_command, context, send_message);
     if (gcolumn == NULL) {
         return NULL;
     }

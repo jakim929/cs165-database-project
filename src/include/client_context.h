@@ -11,9 +11,13 @@ int add_generalized_column_to_client_context(ClientContext* client_context, Gene
 
 GeneralizedColumn* lookup_gcolumn_by_handle(ClientContext* client_context, char* handle);
 
+GeneralizedColumnHandle* lookup_gchandle_by_handle(ClientContext* client_context, char* handle);
+
 int free_client_context(ClientContext* client_context);
 
 int free_generalized_column_handle(GeneralizedColumnHandle* gen_chandle);
+
+int free_generalized_column(GeneralizedColumn* gcolumn);
 
 Table* lookup_table(char *name);
 

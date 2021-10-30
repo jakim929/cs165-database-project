@@ -23,6 +23,14 @@ int add_result_to_client_context(ClientContext* client_context, Result* result, 
 }
 
 int add_generalized_column_to_client_context(ClientContext* client_context, GeneralizedColumn* gen_column, char* handle) {
+	GeneralizedColumnHandle* existing_gchandle = lookup_gchandle_by_handle(client_context, handle);
+	if (existing_gchandle != NULL) {
+		free_generalized_column(&(existing_gchandle->generalized_column));
+		existing_gchandle->generalized_column.column_type = gen_column->column_type;
+		existing_gchandle->generalized_column.column_pointer = gen_column->column_pointer;
+		return 0;
+	}
+	printf("creating new! %s \n", handle);
 	if (client_context->chandle_slots == client_context->chandles_in_use) {
 		client_context->chandle_table = (GeneralizedColumnHandle*) realloc(client_context->chandle_table, 2 * client_context->chandle_slots * sizeof(GeneralizedColumnHandle));
 		client_context->chandle_slots *= 2;
@@ -34,14 +42,22 @@ int add_generalized_column_to_client_context(ClientContext* client_context, Gene
 	return 0;
 }
 
-// TODO optimize lookup with hash tables
-GeneralizedColumn* lookup_gcolumn_by_handle(ClientContext* client_context, char* handle) {
+GeneralizedColumnHandle* lookup_gchandle_by_handle(ClientContext* client_context, char* handle) {
 	for (int i = 0; i < client_context->chandles_in_use; i++) {
 		if (strcmp(client_context->chandle_table[i].name, handle) == 0) {
-			return &(client_context->chandle_table[i].generalized_column);
+			return &(client_context->chandle_table[i]);
 		}
 	}
 	return NULL;
+}
+
+// TODO optimize lookup with hash tables
+GeneralizedColumn* lookup_gcolumn_by_handle(ClientContext* client_context, char* handle) {
+	GeneralizedColumnHandle* gchandle = lookup_gchandle_by_handle(client_context, handle);
+	if (gchandle == NULL) {
+		return NULL;
+	}
+	return &(gchandle->generalized_column);
 }
 
 int free_client_context(ClientContext* client_context) {
@@ -53,11 +69,16 @@ int free_client_context(ClientContext* client_context) {
 	return 0;
 }
 
-int free_generalized_column_handle(GeneralizedColumnHandle* gen_chandle) {
-	if (gen_chandle->generalized_column.column_type == RESULT) {
-		free(gen_chandle->generalized_column.column_pointer.result->payload);
-		free(gen_chandle->generalized_column.column_pointer.result);
+int free_generalized_column(GeneralizedColumn* gcolumn) {
+	if (gcolumn->column_type == RESULT) {
+		free(gcolumn->column_pointer.result->payload);
+		free(gcolumn->column_pointer.result);
 	}
+	return 0;
+}
+
+int free_generalized_column_handle(GeneralizedColumnHandle* gen_chandle) {
+	free_generalized_column(&(gen_chandle->generalized_column));
 	return 0;
 }
 
