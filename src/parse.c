@@ -245,40 +245,78 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
     }
 }
 
-DbOperator* parse_select(char* query_command, message* send_message) {
+DbOperator* parse_select(char* query_command, ClientContext* context, message* send_message) {
     // check for leading '('
     if (strncmp(query_command, "(", 1) == 0) {
         query_command++;
         char** command_index = &query_command;
-        // parse table input
-        char* column_name = next_token(command_index, &send_message->status);
-        char* range_start_value = next_token(command_index, &send_message->status);
-        char* range_end_value = next_token(command_index, &send_message->status);
-        int last_char = strlen(range_end_value) - 1;
-        if (last_char < 0 || range_end_value[last_char] != ')') {
+        char* query_elements[4];
+
+        query_elements[0] = strsep(command_index, ",");
+        query_elements[1] = strsep(command_index, ",");
+        query_elements[2] = strsep(command_index, ",");
+        query_elements[3] = strsep(command_index, ",");
+
+        if (
+            query_elements[0] == NULL ||
+            query_elements[1] == NULL ||
+            query_elements[2] == NULL
+        ) {
+            send_message->status = INCORRECT_FORMAT;
+            return NULL;
+        }
+
+        char* last_param = query_elements[3] == NULL ? query_elements[2] : query_elements[3];
+        int last_char = strlen(last_param) - 1;
+        if (last_char < 0 || last_param[last_char] != ')') {
+            send_message->status = INCORRECT_FORMAT;
             return NULL;
         }
         // replace final ')' with null-termination character.
-        range_end_value[last_char] = '\0';
+        last_param[last_char] = '\0';
 
-        if (send_message->status == INCORRECT_FORMAT) {
-            return NULL;
-        }
+        char* posn_vec_name = NULL;
+        char* column_name;
+        char* range_start_value;
+        char* range_end_value;
 
-        Table* table = NULL;
-        Column* column = NULL;
-        lookup_table_and_column(&table, &column, column_name);
-        // lookup the table and column and make sure it exists. 
-        if (table == NULL || column == NULL) {
-            send_message->status = OBJECT_NOT_FOUND;
-            return NULL;
+        if (query_elements[3] == NULL) {
+            column_name = query_elements[0];
+            range_start_value = query_elements[1];
+            range_end_value = query_elements[2];
+        } else {
+            posn_vec_name = query_elements[0];
+            column_name = query_elements[1];
+            range_start_value = query_elements[2];
+            range_end_value = query_elements[3];
         }
 
         DbOperator* dbo = malloc(sizeof(DbOperator));
         dbo->type = SELECT;
-        dbo->operator_fields.select_operator.table = table;
-        dbo->operator_fields.select_operator.column = column;
+        dbo->operator_fields.select_operator.posn_vec = NULL;
 
+        if (posn_vec_name != NULL) {
+            GeneralizedColumn* gcolumn = lookup_gcolumn_by_handle(context, posn_vec_name);
+            if (
+                gcolumn == NULL ||
+                gcolumn->column_type != RESULT ||
+                gcolumn->column_pointer.result->data_type != INT
+            ) {
+                send_message->status = OBJECT_NOT_FOUND;
+                free(dbo);
+                return NULL;
+            }
+            dbo->operator_fields.select_operator.posn_vec = gcolumn->column_pointer.result;
+        }
+
+        Column* column = lookup_column(column_name);
+        // lookup the table and column and make sure it exists. 
+        if (column == NULL) {
+            send_message->status = OBJECT_NOT_FOUND;
+            return NULL;
+        }
+
+        dbo->operator_fields.select_operator.column = column;
         parse_nullable_int(&(dbo->operator_fields.select_operator.range_start), range_start_value);
         parse_nullable_int(&(dbo->operator_fields.select_operator.range_end), range_end_value);
 
@@ -642,7 +680,7 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         dbo = parse_insert(query_command, send_message);
     } else if (strncmp(query_command, "select", 6) == 0) {
         query_command += 6;
-        dbo = parse_select(query_command, send_message);
+        dbo = parse_select(query_command, context, send_message);
     } else if (strncmp(query_command, "fetch", 5) == 0) {
         query_command += 5;
         dbo = parse_fetch(query_command, context, send_message);

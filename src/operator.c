@@ -10,7 +10,7 @@
 
 char* execute_load_operator(LoadOperator* load_operator);
 char* execute_print_operator(PrintOperator* print_operator);
-Result* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status);
+Result* execute_select_operator(SelectOperator* select_operator, Status* select_status);
 Result* execute_sum_operator(SumOperator* sum_operator);
 Result* execute_average_operator(AverageOperator* average_operator);
 Result* execute_min_operator(MinOperator* min_operator);
@@ -74,10 +74,8 @@ char* execute_db_operator(DbOperator* query) {
         }
     }else if(query && query->type == SELECT) {
         Status select_status;
-        Result* select_result = select_from_column(
-            query->operator_fields.select_operator.column,
-            &(query->operator_fields.select_operator.range_start),
-            &(query->operator_fields.select_operator.range_end),
+        Result* select_result = execute_select_operator(
+            &(query->operator_fields.select_operator),
             &select_status
         );
         if (query->handle != NULL) {
@@ -190,6 +188,7 @@ Result* fetch(Column* val_vec, Result* posn_vec, Status* ret_status) {
 	return result;
 }
 
+
 Result* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status) {
 	Result* result = (Result*) malloc(sizeof(Result));
     result->num_tuples = 0;
@@ -206,6 +205,44 @@ Result* select_from_column(Column* column, NullableInt* range_start, NullableInt
 
 	select_status->code = OK;
 	return result;
+}
+
+Result* select_positions_from_column(Result* posn_vec, Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status) {
+	Result* result = (Result*) malloc(sizeof(Result));
+    result->num_tuples = 0;
+	int* result_posn_vec = (int*) malloc(sizeof(int) * posn_vec->num_tuples);
+	for (size_t i = 0; i < column->size; i++) {
+		// TODO: Try splitting out this if statement?
+		if ((range_start->is_null || column->data[i] >= range_start->value) && (range_end->is_null || column->data[i] < range_end->value)) {
+            result_posn_vec[result->num_tuples++] = i;
+		}
+	}
+	result->data_type = INT;
+	result->payload = posn_vec;
+
+	select_status->code = OK;
+	return result;
+}
+
+Result* execute_select_operator(SelectOperator* select_operator, Status* select_status) {
+    Result* res;
+    if (select_operator->posn_vec == NULL) {
+        res = select_from_column(
+            select_operator->column,
+            &(select_operator->range_start),
+            &(select_operator->range_end),
+            select_status
+        );
+    } else {
+        res = select_positions_from_column(
+            select_operator->posn_vec,
+            select_operator->column,
+            &(select_operator->range_start),
+            &(select_operator->range_end),
+            select_status
+        );
+    }
+    return res;
 }
 
 Result* execute_average_operator(AverageOperator* average_operator) {

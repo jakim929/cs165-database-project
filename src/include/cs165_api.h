@@ -292,8 +292,8 @@ typedef struct NullableInt {
 } NullableInt;
 
 typedef struct SelectOperator {
-    Table* table;
     Column* column;
+    Result* posn_vec;
     NullableInt range_start;
     NullableInt range_end;
 } SelectOperator;
