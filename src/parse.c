@@ -276,17 +276,17 @@ DbOperator* parse_select(char* query_command, ClientContext* context, message* s
         last_param[last_char] = '\0';
 
         char* posn_vec_name = NULL;
-        char* column_name;
+        char* gcolumn_name;
         char* range_start_value;
         char* range_end_value;
 
         if (query_elements[3] == NULL) {
-            column_name = query_elements[0];
+            gcolumn_name = query_elements[0];
             range_start_value = query_elements[1];
             range_end_value = query_elements[2];
         } else {
             posn_vec_name = query_elements[0];
-            column_name = query_elements[1];
+            gcolumn_name = query_elements[1];
             range_start_value = query_elements[2];
             range_end_value = query_elements[3];
         }
@@ -308,15 +308,14 @@ DbOperator* parse_select(char* query_command, ClientContext* context, message* s
             }
             dbo->operator_fields.select_operator.posn_vec = gcolumn->column_pointer.result;
         }
-
-        Column* column = lookup_column(column_name);
+        GeneralizedColumn* gcolumn = lookup_gcolumn_by_handle(context, gcolumn_name);
         // lookup the table and column and make sure it exists. 
-        if (column == NULL) {
+        if (gcolumn == NULL) {
             send_message->status = OBJECT_NOT_FOUND;
             return NULL;
         }
 
-        dbo->operator_fields.select_operator.column = column;
+        dbo->operator_fields.select_operator.gcolumn = gcolumn;
         parse_nullable_int(&(dbo->operator_fields.select_operator.range_start), range_start_value);
         parse_nullable_int(&(dbo->operator_fields.select_operator.range_end), range_end_value);
 

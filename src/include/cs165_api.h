@@ -292,7 +292,7 @@ typedef struct NullableInt {
 } NullableInt;
 
 typedef struct SelectOperator {
-    Column* column;
+    GeneralizedColumn* gcolumn;
     Result* posn_vec;
     NullableInt range_start;
     NullableInt range_end;

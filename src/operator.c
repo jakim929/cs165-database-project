@@ -188,18 +188,34 @@ Result* fetch(Column* val_vec, Result* posn_vec, Status* ret_status) {
 	return result;
 }
 
+void get_payload_from_gcolumn(GeneralizedColumn* gcolumn, int** payload, size_t* size) {
+    if (gcolumn->column_type == RESULT) {
+        *payload = (int*) gcolumn->column_pointer.result->payload;
+        *size = gcolumn->column_pointer.result->num_tuples;
+    } else {
+        *payload = gcolumn->column_pointer.column->data;
+        *size = gcolumn->column_pointer.column->size;
+    }
+}
 
-Result* select_from_column(Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status) {
-	Result* result = (Result*) malloc(sizeof(Result));
+
+Result* select_from_column(GeneralizedColumn* gcolumn, NullableInt* range_start, NullableInt* range_end, Status* select_status) {
+	int* data;
+    size_t data_size;
+    get_payload_from_gcolumn(gcolumn, &data, &data_size);
+
+    Result* result = (Result*) malloc(sizeof(Result));
     result->num_tuples = 0;
 
-	int* posn_vec = (int*) malloc(sizeof(int) * column->size);
-	for (size_t i = 0; i < column->size; i++) {
+
+	int* posn_vec = (int*) malloc(sizeof(int) * data_size);
+	for (size_t i = 0; i < data_size; i++) {
 		// TODO: Try splitting out this if statement?
-		if ((range_start->is_null || column->data[i] >= range_start->value) && (range_end->is_null || column->data[i] < range_end->value)) {
+		if ((range_start->is_null || data[i] >= range_start->value) && (range_end->is_null || data[i] < range_end->value)) {
             posn_vec[result->num_tuples++] = i;
 		}
 	}
+
 	result->data_type = INT;
 	result->payload = posn_vec;
 
@@ -207,18 +223,23 @@ Result* select_from_column(Column* column, NullableInt* range_start, NullableInt
 	return result;
 }
 
-Result* select_positions_from_column(Result* posn_vec, Column* column, NullableInt* range_start, NullableInt* range_end, Status* select_status) {
-	Result* result = (Result*) malloc(sizeof(Result));
+Result* select_positions_from_column(Result* posn_vec, GeneralizedColumn* gcolumn, NullableInt* range_start, NullableInt* range_end, Status* select_status) {
+	int* data;
+    size_t data_size;
+    get_payload_from_gcolumn(gcolumn, &data, &data_size);
+
+    Result* result = (Result*) malloc(sizeof(Result));
     result->num_tuples = 0;
+    int* posn_vec_val = (int*) posn_vec->payload;
 	int* result_posn_vec = (int*) malloc(sizeof(int) * posn_vec->num_tuples);
-	for (size_t i = 0; i < column->size; i++) {
+	for (size_t i = 0; i < data_size; i++) {
 		// TODO: Try splitting out this if statement?
-		if ((range_start->is_null || column->data[i] >= range_start->value) && (range_end->is_null || column->data[i] < range_end->value)) {
-            result_posn_vec[result->num_tuples++] = i;
+		if ((range_start->is_null || data[i] >= range_start->value) && (range_end->is_null || data[i] < range_end->value)) {
+            result_posn_vec[result->num_tuples++] = posn_vec_val[i];
 		}
 	}
 	result->data_type = INT;
-	result->payload = posn_vec;
+	result->payload = result_posn_vec;
 
 	select_status->code = OK;
 	return result;
@@ -228,7 +249,7 @@ Result* execute_select_operator(SelectOperator* select_operator, Status* select_
     Result* res;
     if (select_operator->posn_vec == NULL) {
         res = select_from_column(
-            select_operator->column,
+            select_operator->gcolumn,
             &(select_operator->range_start),
             &(select_operator->range_end),
             select_status
@@ -236,7 +257,7 @@ Result* execute_select_operator(SelectOperator* select_operator, Status* select_
     } else {
         res = select_positions_from_column(
             select_operator->posn_vec,
-            select_operator->column,
+            select_operator->gcolumn,
             &(select_operator->range_start),
             &(select_operator->range_end),
             select_status
