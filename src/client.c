@@ -127,7 +127,6 @@ int main(void)
     }
 
     char *output_str = NULL;
-    int len = 0;
 
     // Continuously loop and wait for input. At each iteration:
     // 1. output interactive marker

@@ -7,6 +7,8 @@ ClientContext* initialize_client_context();
 
 int add_result_to_client_context(ClientContext* client_context, Result* result, char* handle);
 
+int add_placeholder_gcolumn_to_client_context(ClientContext* client_context, char* handle);
+
 int add_generalized_column_to_client_context(ClientContext* client_context, GeneralizedColumn* gen_column, char* handle);
 
 GeneralizedColumn* lookup_gcolumn_by_handle(ClientContext* client_context, char* handle);
@@ -26,5 +28,9 @@ Column* lookup_column(char *name);
 Db* lookup_db(char* name);
 
 void lookup_table_and_column(Table** table, Column** column, char* name);
+
+int start_batch_query(ClientContext* client_context);
+
+int end_batch_query(ClientContext* client_context);
 
 #endif

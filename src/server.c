@@ -78,7 +78,13 @@ int handle_client(int client_socket) {
             // 2. Handle request
             //    Corresponding database operator is executed over the query
             
-            char* result = execute_db_operator(query);
+            char* result;
+            if (client_context->batched_operator != NULL) {
+                result = execute_db_operator_while_batching(query);
+            } else {
+                result = execute_db_operator(query);
+            }
+
             if (query && query->type == SHUTDOWN) {
                 did_shutdown = 1;
                 done = 1;
@@ -91,13 +97,22 @@ int handle_client(int client_socket) {
             send_message.status = OK_WAIT_FOR_RESPONSE;
 
             if (query) {
-                if (query->type == SHUTDOWN) {
-                    did_shutdown = 1;
-                    done = 1;
-                } else if (query->type == PRINT) {
-                    free(result);
+                if (client_context->batched_operator != NULL) {
+                    if (query->type == BATCH_QUERIES) {
+                        free_db_operator(query);
+                    } else if (query->type == BATCH_EXECUTE) {
+                        end_batch_query(client_context);
+                        free_db_operator(query);
+                    }
+                } else {
+                    if (query->type == SHUTDOWN) {
+                        did_shutdown = 1;
+                        done = 1;
+                    } else if (query->type == PRINT) {
+                        free(result);
+                    }
+                    free_db_operator(query);
                 }
-                free_db_operator(query);
             }
             
             // 3. Send status of the received message (OK, UNKNOWN_QUERY, etc)

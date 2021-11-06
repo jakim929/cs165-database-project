@@ -9,7 +9,7 @@
 int allocate(hashtable** ht, int size) {
     *ht = (hashtable*) malloc(sizeof(hashtable));
     initialize_table(*ht, size);
-    return 0;
+    return 0; 
 }
 
 int initialize_table(hashtable* ht, int size) {

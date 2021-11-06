@@ -349,18 +349,18 @@ DbOperator* parse_fetch(char* query_command, ClientContext* context, message* se
         if (send_message->status == INCORRECT_FORMAT) {
             return NULL;
         }
-
-        Table* table = NULL;
-        Column* column = NULL;
-        lookup_table_and_column(&table, &column, column_name);
+        printf("column_name: %s\n", column_name);
+        Column* column = lookup_column(column_name);
         GeneralizedColumn* posn_vec_gcolumn = lookup_gcolumn_by_handle(context, posn_vec_name);
-        // lookup the table and column and make sure it exists. posn_vec needs to be RESULT
+        // lookup the column and make sure it exists. posn_vec needs to be RESULT
+        
         if (
-            table == NULL ||
             column == NULL ||
             posn_vec_gcolumn == NULL ||
-            posn_vec_gcolumn->column_type != RESULT ||
-            posn_vec_gcolumn->column_pointer.result->data_type != INT
+            (posn_vec_gcolumn->column_type != PLACEHOLDER && (
+                posn_vec_gcolumn->column_type != RESULT ||
+                posn_vec_gcolumn->column_pointer.result->data_type != INT
+            ))
         ) {
             send_message->status = OBJECT_NOT_FOUND;
             return NULL;
@@ -369,7 +369,7 @@ DbOperator* parse_fetch(char* query_command, ClientContext* context, message* se
         DbOperator* dbo = malloc(sizeof(DbOperator));
         dbo->type = FETCH;
         dbo->operator_fields.fetch_operator.column = column;
-        dbo->operator_fields.fetch_operator.posn_vec = posn_vec_gcolumn->column_pointer.result;
+        dbo->operator_fields.fetch_operator.posn_vec = posn_vec_gcolumn;
     
         return dbo;
     } else {
@@ -711,12 +711,24 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         query_command += 8;
         dbo = malloc(sizeof(DbOperator));
         dbo->type = SHUTDOWN;
+    } else if (strncmp(query_command, "batch_queries", 13) == 0) {
+        query_command += 13;
+        dbo = malloc(sizeof(DbOperator));
+        dbo->type = BATCH_QUERIES;
+    } else if (strncmp(query_command, "batch_execute", 13) == 0) {
+        query_command += 13;
+        dbo = malloc(sizeof(DbOperator));
+        dbo->type = BATCH_EXECUTE;
     }
     if (dbo == NULL) {
         return dbo;
     }
     
-    dbo->handle = handle;
+    if (handle) {
+        strcpy(dbo->handle, handle);
+    } else {
+        dbo->handle[0] = '\0';
+    }
     dbo->client_fd = client_socket;
     dbo->context = context;
     return dbo;

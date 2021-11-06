@@ -3,13 +3,27 @@
 #include "utils.h"
 #include "catalog.h"
 #include "client_context.h"
+#include "batched_operator.h"
 
 ClientContext* initialize_client_context() {
 	ClientContext* client_context = (ClientContext*) malloc(sizeof(ClientContext));
 	client_context->chandle_table = (GeneralizedColumnHandle*) malloc(INITIAL_CHANDLE_CAPACITY * sizeof(GeneralizedColumnHandle));
 	client_context->chandle_slots = INITIAL_CHANDLE_CAPACITY;
 	client_context->chandles_in_use = 0;
+	client_context->batched_operator = NULL;
 	return client_context;
+}
+
+int start_batch_query(ClientContext* client_context) {
+	// TODO: add logic to resize if necessary
+	client_context->batched_operator = initialize_batched_operator();
+	return 0;
+}
+
+int end_batch_query(ClientContext* client_context) {
+	free_batched_operator(client_context->batched_operator);
+	client_context->batched_operator = NULL;
+	return 0;
 }
 
 int add_result_to_client_context(ClientContext* client_context, Result* result, char* handle) {
@@ -28,6 +42,21 @@ int add_column_to_client_context(ClientContext* client_context, Column* column, 
 	gen_column_pointer.column = column;
 	gen_column.column_pointer = gen_column_pointer;
 	gen_column.column_type = COLUMN;
+	int rflag = add_generalized_column_to_client_context(client_context, &gen_column, handle);
+	return rflag;
+}
+
+int add_placeholder_gcolumn_to_client_context(ClientContext* client_context, char* handle) {
+	GeneralizedColumnHandle* existing_gchandle = lookup_gchandle_by_handle(client_context, handle);
+	if (existing_gchandle != NULL) {
+		return 0;
+	}
+
+	struct GeneralizedColumn gen_column;
+    union GeneralizedColumnPointer gen_column_pointer;
+	gen_column_pointer.result = NULL;
+	gen_column.column_pointer = gen_column_pointer;
+	gen_column.column_type = PLACEHOLDER;
 	int rflag = add_generalized_column_to_client_context(client_context, &gen_column, handle);
 	return rflag;
 }

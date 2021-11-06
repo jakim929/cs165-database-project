@@ -293,6 +293,11 @@ void print_tbl_data(Table* tbl, int preview_count) {
 	for(int i = 0; i < preview_count; i++) {
 		payload[i] = i;
 	}
+	struct GeneralizedColumn posn_vec_gcolumn;
+	union GeneralizedColumnPointer posn_vec_gcolumn_pointer;
+	posn_vec_gcolumn_pointer.result = &posn_vec;
+	posn_vec_gcolumn.column_type = RESULT;
+	posn_vec_gcolumn.column_pointer = posn_vec_gcolumn_pointer;
 
     GeneralizedColumn** fetch_gcolumns = (GeneralizedColumn**) malloc(tbl->col_count * sizeof(GeneralizedColumn*));
 
@@ -300,7 +305,7 @@ void print_tbl_data(Table* tbl, int preview_count) {
         Status ret_status;
 		fetch_gcolumns[i] = (GeneralizedColumn*) malloc(sizeof(GeneralizedColumn));
         fetch_gcolumns[i]->column_type = RESULT;
-        fetch_gcolumns[i]->column_pointer.result = fetch(&(tbl->columns[i]), &posn_vec, &ret_status);
+        fetch_gcolumns[i]->column_pointer.result = execute_fetch_operator(&(tbl->columns[i]), &posn_vec_gcolumn, &ret_status);
 	}
 
     PrintOperator print_operator;

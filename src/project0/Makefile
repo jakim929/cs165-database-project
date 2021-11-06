@@ -1,4 +1,4 @@
-CC=gcc -std=c99
+CC=gcc -std=c99 -lm
 CFLAGS = -ggdb3 -W -Wall -Wextra -Werror -O3
 LDFLAGS =
 LIBS =

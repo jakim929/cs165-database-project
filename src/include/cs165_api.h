@@ -45,6 +45,8 @@ SOFTWARE.
 #define INITIAL_PRINT_OPERATOR_COLUMNS_CAPACITY 32
 #define INITIAL_PRINT_OPERATOR_BUFFER_SIZE 81920
 
+typedef struct BatchedOperator BatchedOperator;
+
 /**
  * EXTRA
  * DataType
@@ -176,7 +178,9 @@ typedef struct Result {
  */
 typedef enum GeneralizedColumnType {
     RESULT,
-    COLUMN
+    COLUMN,
+    PLACEHOLDER
+    // For holding place during batch queries. Code should guarantee that this is replaced with a real value before being used
 } GeneralizedColumnType;
 /*
  * a union type holding either a column or a result struct
@@ -205,10 +209,12 @@ typedef struct GeneralizedColumnHandle {
 /*
  * holds the information necessary to refer to generalized columns (results or columns)
  */
+
 typedef struct ClientContext {
     GeneralizedColumnHandle* chandle_table;
     int chandles_in_use;
     int chandle_slots;
+    BatchedOperator* batched_operator;
 } ClientContext;
 
 /**
@@ -241,6 +247,8 @@ typedef enum OperatorType {
     ADD,
     SUB,
     SHUTDOWN,
+    BATCH_QUERIES,
+    BATCH_EXECUTE,
 } OperatorType;
 
 
@@ -300,7 +308,7 @@ typedef struct SelectOperator {
 
 typedef struct FetchOperator {
     Column* column;
-    Result* posn_vec;
+    GeneralizedColumn* posn_vec;
 } FetchOperator;
 
 typedef struct AverageOperator {
@@ -351,6 +359,7 @@ typedef union OperatorFields {
     AddOperator add_operator;
     SubOperator sub_operator;
 } OperatorFields;
+
 /*
  * DbOperator holds the following fields:
  * type: the type of operator to perform (i.e. insert, select, ...)
@@ -359,12 +368,26 @@ typedef union OperatorFields {
  * context: the context of the operator in question. This context holds the local results of the client in question.
  */
 typedef struct DbOperator {
+    char handle[HANDLE_MAX_SIZE];
     OperatorType type;
     OperatorFields operator_fields;
     int client_fd;
     ClientContext* context;
-    char* handle;
 } DbOperator;
+
+typedef struct GroupedBatchedOperator {
+    // gcolumns and batches are aligned
+    GeneralizedColumn** gcolumns;
+    BatchedOperator** batches;
+    int size;
+    int capacity;
+} GroupedBatchedOperator;
+
+struct BatchedOperator {
+    DbOperator** dbos;
+    int size;
+    int capacity;
+};
 
 extern Db *current_db;
 
@@ -382,11 +405,13 @@ Column* create_column(Table *table, char *name, bool sorted, Status *ret_status)
 
 void insert_row(Table *table, int* values, Status *ret_status);
 
-Result* fetch(Column* val_vec, Result* posn_vec, Status* ret_status);
+Result* execute_fetch_operator(Column* val_vec, GeneralizedColumn* posn_vec_gcolumn, Status* ret_status);
 
 int free_db(Db* db);
 
 Status shutdown_server();
+
+char* execute_db_operator_while_batching(DbOperator* query);
 
 char* execute_db_operator(DbOperator* query);
 

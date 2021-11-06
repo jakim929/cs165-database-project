@@ -7,7 +7,9 @@
 #include "cs165_api.h"
 #include "utils.h"
 #include "client_context.h"
+#include "batched_operator.h"
 
+char* batch_execute(ClientContext* client_context, BatchedOperator* batched_operator);
 char* execute_load_operator(LoadOperator* load_operator);
 char* execute_print_operator(PrintOperator* print_operator);
 Result* execute_select_operator(SelectOperator* select_operator, Status* select_status);
@@ -28,6 +30,18 @@ Result* execute_sub_operator(SubOperator* sub_operator);
  *      How will you ensure different queries invoke different execution paths in your code?
  **/
 
+char* execute_db_operator_while_batching(DbOperator* query) {
+    if (query->type == BATCH_EXECUTE) {
+        return batch_execute(query->context, query->context->batched_operator);
+    } else {
+        if (strlen(query->handle) != 0) {
+            add_placeholder_gcolumn_to_client_context(query->context, query->handle);
+        }
+        add_to_batched_operator(query->context->batched_operator, query);
+    }
+    return "";
+}
+
 // TODO: check if db_operator is freed in every case
 char* execute_db_operator(DbOperator* query) {
     // there is a small memory leak here (when combined with other parts of your database.)
@@ -37,15 +51,18 @@ char* execute_db_operator(DbOperator* query) {
     {
         return "";
     }
-    if(query && query->type == CREATE){
-        if(query->operator_fields.create_operator.create_type == _DB){
+
+    if (query->type == BATCH_QUERIES) {
+        start_batch_query(query->context);
+        return "";
+    } else if (query->type == CREATE){
+        if (query->operator_fields.create_operator.create_type == _DB){
             if (create_db(query->operator_fields.create_operator.name).code == OK) {
                 return "";
             } else {
                 return "";
             }
-        }
-        else if(query->operator_fields.create_operator.create_type == _TABLE) {
+        } else if (query->operator_fields.create_operator.create_type == _TABLE) {
             Status create_status;
             create_table(query->operator_fields.create_operator.db, 
                 query->operator_fields.create_operator.name, 
@@ -55,7 +72,7 @@ char* execute_db_operator(DbOperator* query) {
                 return "";
             }
             return "";
-        } else if(query->operator_fields.create_operator.create_type == _COLUMN) {
+        } else if (query->operator_fields.create_operator.create_type == _COLUMN) {
             Status create_status;
             create_column(query->operator_fields.create_operator.table, 
                 query->operator_fields.create_operator.name, 
@@ -66,19 +83,19 @@ char* execute_db_operator(DbOperator* query) {
             }
             return "";
         }
-    }else if(query && query->type == INSERT) {
+    } else if (query->type == INSERT) {
         Status insert_status;
         insert_row(query->operator_fields.insert_operator.table, query->operator_fields.insert_operator.values, &insert_status);
         if (insert_status.code == OK) {
             return "";
         }
-    }else if(query && query->type == SELECT) {
+    } else if (query->type == SELECT) {
         Status select_status;
         Result* select_result = execute_select_operator(
             &(query->operator_fields.select_operator),
             &select_status
         );
-        if (query->handle != NULL) {
+        if (strlen(query->handle) != 0) {
             int rflag = add_result_to_client_context(query->context, select_result, query->handle);
             if (rflag < 0) {
                 select_status.code = ERROR;
@@ -88,81 +105,81 @@ char* execute_db_operator(DbOperator* query) {
         if (select_status.code == OK) {
             return "";
         }
-    } else if (query && query->type == FETCH) {
+    } else if (query->type == FETCH) {
         Status fetch_status;
-        Result* fetch_result = fetch(
+        Result* fetch_result = execute_fetch_operator(
             query->operator_fields.fetch_operator.column,
             query->operator_fields.fetch_operator.posn_vec,
             &fetch_status
         );
-        if (query->handle != NULL) {
+        if (strlen(query->handle) != 0) {
             int rflag = add_result_to_client_context(query->context, fetch_result, query->handle);
             if (rflag < 0) {
                 fetch_status.code = ERROR;
                 return "";
             }
         }
-    } else if (query && query->type == AVERAGE) {
+    } else if (query->type == AVERAGE) {
         Result* average_result = execute_average_operator(&(query->operator_fields.average_operator));
-        if (query->handle != NULL) {
+        if (strlen(query->handle) != 0) {
             int rflag = add_result_to_client_context(query->context, average_result, query->handle);
             if (rflag < 0) {
                 return "";
             }
         }
         return "";
-    } else if (query && query->type == SUM) {
+    } else if (query->type == SUM) {
         Result* sum_result = execute_sum_operator(&(query->operator_fields.sum_operator));
-        if (query->handle != NULL) {
+        if (strlen(query->handle) != 0) {
             int rflag = add_result_to_client_context(query->context, sum_result, query->handle);
             if (rflag < 0) {
                 return "";
             }
         }
         return "";
-    } else if (query && query->type == MIN) {
+    } else if (query->type == MIN) {
         Result* min_result = execute_min_operator(&(query->operator_fields.min_operator));
-        if (query->handle != NULL) {
+        if (strlen(query->handle) != 0) {
             int rflag = add_result_to_client_context(query->context, min_result, query->handle);
             if (rflag < 0) {
                 return "";
             }
         }
         return "";
-    } else if (query && query->type == MAX) {
+    } else if (query->type == MAX) {
         Result* max_result = execute_max_operator(&(query->operator_fields.max_operator));
-        if (query->handle != NULL) {
+        if (strlen(query->handle) != 0) {
             int rflag = add_result_to_client_context(query->context, max_result, query->handle);
             if (rflag < 0) {
                 return "";
             }
         }
         return "";
-    } else if (query && query->type == ADD) {
+    } else if (query->type == ADD) {
         Result* result = execute_add_operator(&(query->operator_fields.add_operator));
-        if (query->handle != NULL) {
+        if (strlen(query->handle) != 0) {
             int rflag = add_result_to_client_context(query->context, result, query->handle);
             if (rflag < 0) {
                 return "";
             }
         }
         return "";
-    } else if (query && query->type == SUB) {
+    } else if (query->type == SUB) {
         Result* result = execute_sub_operator(&(query->operator_fields.sub_operator));
-        if (query->handle != NULL) {
+        if (strlen(query->handle) != 0) {
             int rflag = add_result_to_client_context(query->context, result, query->handle);
             if (rflag < 0) {
                 return "";
             }
         }
         return "";
-    } else if (query && query->type == LOAD) {
+    } else if (query->type == LOAD) {
         char* load_result = execute_load_operator(&(query->operator_fields.load_operator));
         return load_result;
-    } else if (query && query->type == PRINT) {
+    } else if (query->type == PRINT) {
         char* print_result = execute_print_operator(&(query->operator_fields.print_operator));
         return print_result;
-    } else if(query && query->type == SHUTDOWN) {
+    } else if(query->type == SHUTDOWN) {
         Status shutdown_status = shutdown_server();
         if (shutdown_status.code != OK) {
             return "";
@@ -172,7 +189,8 @@ char* execute_db_operator(DbOperator* query) {
     return "";
 }
 
-Result* fetch(Column* val_vec, Result* posn_vec, Status* ret_status) {
+Result* execute_fetch_operator(Column* val_vec, GeneralizedColumn* posn_vec_gcolumn, Status* ret_status) {
+    Result* posn_vec = posn_vec_gcolumn->column_pointer.result;
 	Result* result = (Result*) malloc(sizeof(Result));
 	int* res_vec = (int*) malloc(sizeof(int) * (posn_vec->num_tuples));
 	int* data_payload = (int*) posn_vec->payload;
@@ -198,7 +216,6 @@ void get_payload_from_gcolumn(GeneralizedColumn* gcolumn, int** payload, size_t*
     }
 }
 
-
 Result* select_from_column(GeneralizedColumn* gcolumn, NullableInt* range_start, NullableInt* range_end, Status* select_status) {
 	int* data;
     size_t data_size;
@@ -206,7 +223,6 @@ Result* select_from_column(GeneralizedColumn* gcolumn, NullableInt* range_start,
 
     Result* result = (Result*) malloc(sizeof(Result));
     result->num_tuples = 0;
-
 
 	int* posn_vec = (int*) malloc(sizeof(int) * data_size);
 	for (size_t i = 0; i < data_size; i++) {
@@ -448,6 +464,61 @@ char* execute_print_operator(PrintOperator* print_operator) {
     }
     buffer[written_so_far - 1] = '\0';
     return buffer;
+}
+
+char* execute_batched_select_operator(ClientContext* client_context, BatchedOperator* batched_operator) {
+    Column* column = batched_operator->dbos[0]->operator_fields.select_operator.gcolumn->column_pointer.column;
+    Result* results = (Result*) malloc(sizeof(Result) * batched_operator->size);
+    for (int j = 0; j < batched_operator->size; j++) {
+        results[j].data_type = INT;
+        results[j].num_tuples = 0;
+        // TODO: add dynamic resizing
+        results[j].payload = malloc(sizeof(int) * column->size);
+    }
+    for (size_t i = 0; i < column->size; i++) {
+        for (int j = 0; j < batched_operator->size; j++) {
+            SelectOperator* select_operator = &(batched_operator->dbos[j]->operator_fields.select_operator);
+            if (
+                (
+                    select_operator->range_start.is_null ||
+                    column->data[i] >= select_operator->range_start.value
+                ) && (
+                    select_operator->range_end.is_null ||
+                    column->data[i] < select_operator->range_end.value
+                )
+            ) {
+                ((int*) results[j].payload)[results[j].num_tuples++] = i;
+            }
+        }
+    }
+
+    for (int j = 0; j < batched_operator->size; j++) {
+        add_result_to_client_context(client_context, &results[j], batched_operator->dbos[j]->handle);
+    }
+	return "";
+}
+
+char* batch_execute(ClientContext* client_context, BatchedOperator* batched_operator) {
+    GroupedBatchedOperator* grouped_batched_operator = initialize_grouped_batched_operator();
+    printf("currently batched %d queries\n", batched_operator->size);
+
+    for (int i = 0; i < batched_operator->size; i++) {
+        // GeneralizedColumn* gcolumn = batched_operator->dbos[i]->operator_fields.select_operator.gcolumn;
+        add_to_grouped_batched_operator(grouped_batched_operator, batched_operator->dbos[i]);
+	}
+    printf("after grouping %d groups\n", grouped_batched_operator->size);
+
+    for (int i = 0; i < grouped_batched_operator->size; i++) {
+        if (grouped_batched_operator->batches[i]->dbos[0]->type == SELECT) {
+            execute_batched_select_operator(client_context, grouped_batched_operator->batches[i]);
+        } else {
+            for (int j = 0; j < grouped_batched_operator->batches[i]->size; j++) {
+                execute_db_operator(grouped_batched_operator->batches[i]->dbos[j]);
+            }
+        }
+    }
+
+    return "";
 }
 
 int free_db_operator(DbOperator* dbo) {
