@@ -68,6 +68,10 @@ int free_batched_operator(BatchedOperator* batched_operator) {
 
 int add_to_batched_operator(BatchedOperator* batched_operator, DbOperator* dbo) {
 	// TODO: add logic to resize if necessary
+	if (batched_operator->size == batched_operator->capacity) {
+		batched_operator->capacity *= 2;
+		batched_operator->dbos = (DbOperator**) realloc(batched_operator->dbos, sizeof(DbOperator*) * batched_operator->capacity);
+	}
 	batched_operator->dbos[batched_operator->size++] = dbo;
 	return 0;
 }

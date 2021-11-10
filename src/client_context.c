@@ -5,6 +5,8 @@
 #include "client_context.h"
 #include "batched_operator.h"
 
+#define INITIAL_CHANDLE_CAPACITY 128
+
 ClientContext* initialize_client_context() {
 	ClientContext* client_context = (ClientContext*) malloc(sizeof(ClientContext));
 	client_context->chandle_table = (GeneralizedColumnHandle*) malloc(INITIAL_CHANDLE_CAPACITY * sizeof(GeneralizedColumnHandle));

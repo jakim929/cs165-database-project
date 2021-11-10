@@ -24,7 +24,7 @@ RAND_SEED=42
 
 
 # # setup code
-cd ../../src
+cd ../src
 make clean
 make all
 
@@ -36,11 +36,11 @@ make all
 # ./client < ../$REL_TEST_DIR/test01gen.dsl
 # echo ""
 # echo "running test 2"
-./server > $STUDENT_OUTPUT_DIR/test10gen.server.debug.out &
+./server > $STUDENT_OUTPUT_DIR/test17.server.debug.out &
 # sleep 1
 # ./client < ../$REL_TEST_DIR/test02gen.dsl
 # echo ""
-echo "running test 10"
+echo "running test 17"
 sleep 1
-./client < ../$REL_TEST_DIR/test10gen.dsl
+./client < ../$REL_TEST_DIR/test17gen.dsl
 if pgrep server; then pkill server; fi
