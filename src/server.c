@@ -217,6 +217,8 @@ int main(void)
         did_shutdown = handle_client(client_socket);
     }
 
+    log_info("Shutting down...\n");
+
     exit(1);
 
     // if ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) == -1) {

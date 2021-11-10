@@ -80,8 +80,10 @@ Column* create_column(Table *table, char *name, bool sorted, Status *ret_status)
 	table->columns_capacity--;
 
 	new_column->capacity = table->table_capacity;
+	new_column->size = 0;
 
 	strncpy(new_column->name, name, MAX_SIZE_NAME);
+	new_column->path[0] = '\0';
 	strcat(new_column->path, table->base_directory);
 	strcat(new_column->path, "/");
 	strcat(new_column->path, table->name);
@@ -134,8 +136,9 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
 	}
 	struct Table* new_table = &(db->tables[db->tables_size - db->tables_capacity]);
 	db->tables_capacity--;
-
+	new_table->name[0] = '\0';
 	strncpy(new_table->name, name, MAX_SIZE_NAME);
+	new_table->base_directory[0] = '\0';
 	strncpy(new_table->base_directory, db->base_directory, MAX_PATH_NAME_SIZE);
 	new_table->col_count = num_columns;
 	new_table->columns = (Column*) malloc(sizeof(Column) * num_columns);

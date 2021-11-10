@@ -165,7 +165,7 @@ DbOperator* parse_create_db(char* create_arguments) {
  * parse_create parses a create statement and then passes the necessary arguments off to the next function
  **/
 DbOperator* parse_create(char* create_arguments) {
-    message_status mes_status;
+    message_status mes_status = OK_DONE;
     DbOperator* dbo = NULL;
     char *tokenizer_copy, *to_free;
     // Since strsep destroys input, we create a copy of our input. 
@@ -349,7 +349,6 @@ DbOperator* parse_fetch(char* query_command, ClientContext* context, message* se
         if (send_message->status == INCORRECT_FORMAT) {
             return NULL;
         }
-        printf("column_name: %s\n", column_name);
         Column* column = lookup_column(column_name);
         GeneralizedColumn* posn_vec_gcolumn = lookup_gcolumn_by_handle(context, posn_vec_name);
         // lookup the column and make sure it exists. posn_vec needs to be RESULT
@@ -600,7 +599,6 @@ DbOperator* parse_load(char* query_command, message* send_message) {
     if (strncmp(query_command, "\n", 1) == 0) {
         query_command++;
         char** command_index = &query_command;
-
         char* column_names = next_line(command_index, &send_message->status);
 
         Table* table = get_table_from_column_names(column_names, send_message);
@@ -655,14 +653,16 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         handle = NULL;
     }
 
-    cs165_log(stdout, "QUERY: %s\n", query_command);
+    bool is_load_command = strncmp(query_command, "load", 4) == 0;
+    if (!is_load_command) {
+        cs165_log(stdout, "QUERY: %s\n", query_command);
+    }
 
     // by default, set the status to acknowledge receipt of command,
     //   indication to client to now wait for the response from the server.
     //   Note, some commands might want to relay a different status back to the client.
     send_message->status = OK_WAIT_FOR_RESPONSE;
 
-    bool is_load_command = strncmp(query_command, "load", 4) == 0;
     query_command = is_load_command ? trim_whitespace_retain_new_line(query_command) : trim_whitespace(query_command);
     // check what command is given. 
     if (strncmp(query_command, "create", 6) == 0) {

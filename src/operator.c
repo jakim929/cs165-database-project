@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include <stdio.h>
+#include <inttypes.h>
 #include <string.h>
 #include <time.h>
 #include <limits.h>
@@ -403,18 +404,19 @@ char* execute_load_operator(LoadOperator* load_operator) {
     Status insert_status;
     int* row_buffer = (int*) malloc(load_operator->table->col_count * sizeof(int));
     char* line = NULL;
-
     while ((line = strsep(&(load_operator->load_data), "\n")) != NULL) {
         size_t col_inserted = 0;
         char* value = NULL;
         while ((value = strsep(&line, ",")) != NULL) {
-            row_buffer[col_inserted++] = atoi(value);
+            char* temp;
+            row_buffer[col_inserted++] = (int) strtol(value, &temp, 0);
             if (col_inserted == load_operator->table->col_count) {
                 col_inserted = 0;
                 insert_row(load_operator->table, row_buffer, &insert_status);
             }
-        }
+        }        
     }
+    free(row_buffer);
     return "";
 }
 
@@ -468,12 +470,13 @@ char* execute_print_operator(PrintOperator* print_operator) {
 
 char* execute_batched_select_operator(ClientContext* client_context, BatchedOperator* batched_operator) {
     Column* column = batched_operator->dbos[0]->operator_fields.select_operator.gcolumn->column_pointer.column;
-    Result* results = (Result*) malloc(sizeof(Result) * batched_operator->size);
+    Result** results = (Result**) malloc(sizeof(Result*) * batched_operator->size);
     for (int j = 0; j < batched_operator->size; j++) {
-        results[j].data_type = INT;
-        results[j].num_tuples = 0;
+        results[j] = (Result*) malloc(sizeof(Result));
+        results[j]->data_type = INT;
+        results[j]->num_tuples = 0;
         // TODO: add dynamic resizing
-        results[j].payload = malloc(sizeof(int) * column->size);
+        results[j]->payload = malloc(sizeof(int) * column->size);
     }
     for (size_t i = 0; i < column->size; i++) {
         for (int j = 0; j < batched_operator->size; j++) {
@@ -487,26 +490,24 @@ char* execute_batched_select_operator(ClientContext* client_context, BatchedOper
                     column->data[i] < select_operator->range_end.value
                 )
             ) {
-                ((int*) results[j].payload)[results[j].num_tuples++] = i;
+                ((int*) results[j]->payload)[results[j]->num_tuples++] = i;
             }
         }
     }
 
     for (int j = 0; j < batched_operator->size; j++) {
-        add_result_to_client_context(client_context, &results[j], batched_operator->dbos[j]->handle);
+        add_result_to_client_context(client_context, results[j], batched_operator->dbos[j]->handle);
     }
+    free(results);
 	return "";
 }
 
 char* batch_execute(ClientContext* client_context, BatchedOperator* batched_operator) {
     GroupedBatchedOperator* grouped_batched_operator = initialize_grouped_batched_operator();
-    printf("currently batched %d queries\n", batched_operator->size);
 
     for (int i = 0; i < batched_operator->size; i++) {
-        // GeneralizedColumn* gcolumn = batched_operator->dbos[i]->operator_fields.select_operator.gcolumn;
         add_to_grouped_batched_operator(grouped_batched_operator, batched_operator->dbos[i]);
 	}
-    printf("after grouping %d groups\n", grouped_batched_operator->size);
 
     for (int i = 0; i < grouped_batched_operator->size; i++) {
         if (grouped_batched_operator->batches[i]->dbos[0]->type == SELECT) {

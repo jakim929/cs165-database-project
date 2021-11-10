@@ -5,7 +5,7 @@
 
 # the test directory, containing generated data dl, exp, and csvs
 # expressed, relative to the base project directory
-REL_TEST_DIR=generated_data
+REL_TEST_DIR=staff_test
 # absolute with the docker mount points
 ABS_TEST_DIR=/cs165/$REL_TEST_DIR
 
@@ -15,15 +15,18 @@ DATA_SIZE=10000
 RAND_SEED=42
 
 # create milestone 1 data
-cd project_tests/data_generation_scripts
+# cd project_tests/data_generation_scripts
 # python milestone1.py $DATA_SIZE $RAND_SEED $ABS_TEST_DIR $ABS_TEST_DIR
-python milestone1.py $DATA_SIZE $RAND_SEED
+# python milestone1.py $DATA_SIZE $RAND_SEED
+
+# python milestone1.py $DATA_SIZE $RAND_SEED $ABS_TEST_DIR $ABS_TEST_DIR
+
 
 
 # # setup code
-# cd ../../src
-# make clean
-# make all
+cd ../../src
+make clean
+make all
 
 # # record results of tests
 # echo ""
@@ -33,11 +36,11 @@ python milestone1.py $DATA_SIZE $RAND_SEED
 # ./client < ../$REL_TEST_DIR/test01gen.dsl
 # echo ""
 # echo "running test 2"
-# ./server > $STUDENT_OUTPUT_DIR/test02gen.server.debug.out &
+./server > $STUDENT_OUTPUT_DIR/test10gen.server.debug.out &
 # sleep 1
 # ./client < ../$REL_TEST_DIR/test02gen.dsl
 # echo ""
-# echo "running test 3"
-# sleep 1
-# ./client < ../$REL_TEST_DIR/test03gen.dsl
-# if pgrep server; then pkill server; fi
+echo "running test 10"
+sleep 1
+./client < ../$REL_TEST_DIR/test10gen.dsl
+if pgrep server; then pkill server; fi
