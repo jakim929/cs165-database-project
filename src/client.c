@@ -83,13 +83,17 @@ void send_message_to_server(int client_socket, message* send_message, message* r
             (int) recv_message->length > 0) {
             // Calculate number of bytes in response package
             int num_bytes = (int) recv_message->length;
+            int written_bytes = 0;
             char payload[num_bytes + 1];
-
-            // Receive the payload and print it out
-            if ((len = recv(client_socket, payload, num_bytes, 0)) > 0) {
-                payload[num_bytes] = '\0';
-                printf("%s\n", payload);
+        
+            while(num_bytes > written_bytes) {
+                // Receive the payload and print it out
+                if ((len = recv(client_socket, payload + written_bytes, num_bytes, 0)) > 0) {
+                    written_bytes += len;
+                }
             }
+            payload[num_bytes] = '\0';
+            printf("%s\n", payload);
         }
     }
     else {

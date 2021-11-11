@@ -121,10 +121,17 @@ int handle_client(int client_socket) {
                 exit(1);
             }
 
-            // 4. Send response to the request
-            if (send(client_socket, send_message.payload, send_message.length, 0) == -1) {
-                log_err("Failed to send message.");
-                exit(1);
+            int send_block_size = 4096;
+            int sent_so_far = 0;
+            while (sent_so_far < send_message.length) {
+                int amount_left = send_message.length - sent_so_far;
+                int amount_to_send = amount_left > send_block_size ? send_block_size: amount_left;
+                // 4. Send response to the request
+                if (send(client_socket, send_message.payload + sent_so_far, amount_to_send, 0) == -1) {
+                    log_err("Failed to send message.");
+                    exit(1);
+                }
+                sent_so_far += amount_to_send;
             }
         }
     } while (!done);
