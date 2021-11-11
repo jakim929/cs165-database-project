@@ -1,5 +1,6 @@
 student_outputs
 generated_data
+generated_data_copy
 
 # Object files
 obj/*

@@ -39,13 +39,13 @@ int add_to_grouped_batched_operator(GroupedBatchedOperator* grouped_batched_oper
 }
 
 int free_grouped_batched_operator(GroupedBatchedOperator* grouped_batched_operator) {
-	free(grouped_batched_operator->batches);
-	free(grouped_batched_operator);
     // Doesnt free underlying dbo
     for (int i = 0; i < grouped_batched_operator->size; i++) {
 		free(grouped_batched_operator->batches[i]->dbos);
 	    free(grouped_batched_operator->batches[i]);
 	}
+	free(grouped_batched_operator->batches);
+	free(grouped_batched_operator);
 	return 0;
 }
 

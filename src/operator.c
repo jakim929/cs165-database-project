@@ -286,13 +286,13 @@ Result* execute_select_operator(SelectOperator* select_operator, Status* select_
 Result* execute_average_operator(AverageOperator* average_operator) {
     size_t size = average_operator->val_vec->num_tuples;
     int* data = (int*) average_operator->val_vec->payload;
-    double sum = 0;
+    long sum = 0;
 
     clock_t start, end;
     double cpu_time_used;
     start = clock();
     for (size_t i = 0; i < size; i++) {
-        sum += (double) data[i];
+        sum += (long) data[i];
     }
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
@@ -302,7 +302,7 @@ Result* execute_average_operator(AverageOperator* average_operator) {
     result->data_type = FLOAT;
     result->num_tuples = 1;
     result->payload = malloc(sizeof(float));
-    ((float*) result->payload)[0] = (float) (sum / ((double) size));
+    ((float*) result->payload)[0] = (float) ((double) sum / ((double) size));
     return result;
 }
 
@@ -320,15 +320,15 @@ Result* execute_sum_operator(SumOperator* sum_operator) {
         data = (int*) val_vec_col->data;
     }
 
-    int sum = 0;
+    long sum = 0;
     for (size_t i = 0; i < size; i++) {
-        sum += data[i];
+        sum += (long) data[i];
     }
     Result* result = (Result*) malloc(sizeof(Result));
-    result->data_type = INT;
+    result->data_type = LONG;
     result->num_tuples = 1;
-    result->payload = malloc(sizeof(int));
-    ((int*) result->payload)[0] = sum;
+    result->payload = malloc(sizeof(long));
+    ((long*) result->payload)[0] = sum;
     return result;
 }
 
@@ -451,6 +451,7 @@ int print_gcolumn_data(char* dest, GeneralizedColumn* gcolumn, size_t index) {
 char* execute_print_operator(PrintOperator* print_operator) {
     int written_so_far = 0;
     int buffer_size = INITIAL_PRINT_OPERATOR_BUFFER_SIZE;
+    int line_size = 128;
     char* buffer = (char*) malloc(buffer_size);
 
     // TODO: add logic to increase buffer size if necessary
@@ -458,6 +459,9 @@ char* execute_print_operator(PrintOperator* print_operator) {
 
     size_t row_count = get_gcolumn_size(print_operator->generalized_columns[0]);
     for (size_t i = 0; i < row_count; i++) {
+        if (buffer_size  - written_so_far < line_size) {
+            buffer = (char*) realloc(buffer, buffer_size*=2);
+        }
         for (int j = 0; j < print_operator->generalized_columns_count; j++) {
             int newly_written = print_gcolumn_data(buffer + written_so_far, print_operator->generalized_columns[j], i);
             written_so_far += newly_written;
@@ -519,6 +523,7 @@ char* batch_execute(ClientContext* client_context, BatchedOperator* batched_oper
         }
     }
 
+    free_grouped_batched_operator(grouped_batched_operator);
     return "";
 }
 
