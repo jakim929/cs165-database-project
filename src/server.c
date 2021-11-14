@@ -30,9 +30,12 @@
 #include "utils.h"
 #include "client_context.h"
 #include "catalog.h"
+#include "thread_pool.h"
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
 #define CONCURRENT_CLIENTS_SIZE 32
+
+ThreadPool* tpool;
 
 /**
  * handle_client(client_socket)
@@ -72,6 +75,13 @@ int handle_client(int client_socket) {
             length = recv(client_socket, recv_buffer, recv_message.length,0);
             recv_message.payload = recv_buffer;
             recv_message.payload[recv_message.length] = '\0';
+            
+            Task* task = (Task*) malloc(sizeof(Task));
+            task->next = NULL;
+            task->k = recv_message.length;
+            add_task_to_thread_pool(tpool, task);
+            wait_until_thread_pool_idle(tpool);
+            
             // 1. Parse command
             //    Query string is converted into a request for an database operator
             DbOperator* query = parse_command(recv_message.payload, &send_message, client_socket, client_context);
@@ -219,6 +229,15 @@ int main(void)
     int client_socket = 0;
     int did_shutdown = 0;
 
+
+    tpool = initialize_thread_pool(4);
+    for (int i = 0; i < 20; i++) {
+        Task* task = (Task*) malloc(sizeof(Task));
+        task->next = NULL;
+        task->k = i;
+        add_task_to_thread_pool(tpool, task);
+    }
+    wait_until_thread_pool_idle(tpool);
 
     while(!did_shutdown && (client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) != -1) {         
         did_shutdown = handle_client(client_socket);
