@@ -567,50 +567,7 @@ char* execute_print_operator(PrintOperator* print_operator) {
 // 	return "";
 // }
 
-// // split column data into n chunks
-// char* execute_batched_select_operator(ClientContext* client_context, BatchedOperator* batched_operator) {
-//     Column* column = batched_operator->dbos[0]->operator_fields.select_operator.gcolumn->column_pointer.column;
-//     Result** results = (Result**) malloc(sizeof(Result*) * batched_operator->size);
-//     SelectOperator** select_operators = (SelectOperator**) malloc(sizeof(SelectOperator*) * batched_operator->size);
-//     pthread_mutex_t* result_mutexes = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t) * batched_operator->size);
-//     for (int j = 0; j < batched_operator->size; j++) {
-//         results[j] = (Result*) malloc(sizeof(Result));
-//         results[j]->data_type = INT;
-//         results[j]->num_tuples = 0;
-//         // TODO: add dynamic resizing
-//         results[j]->payload = malloc(sizeof(int) * column->size);
-//         select_operators[j] = &(batched_operator->dbos[j]->operator_fields.select_operator);
-//         pthread_mutex_init(&result_mutexes[j], NULL);
-//     }
-
-
-//     int start_position = 0;
-//     for (int i = 0; i < tpool->num_threads; i++) {
-//         int divided_chunk_size = column->size / tpool->num_threads + 1;
-//         int size_left = column->size - start_position;
-//         int chunk_size = (size_left) < divided_chunk_size ? size_left : divided_chunk_size;
-//         start_position += chunk_size;
-//         Task* task = (Task*) malloc(sizeof(Task));
-//         task->data = column->data;
-//         task->start_position = start_position;
-//         task->num_operators = batched_operator->size;
-//         task->write_mutexes = result_mutexes;
-//         task->results = results;
-//         task->select_operators = select_operators;
-//         task->next = NULL;
-//         task->scan_size = chunk_size;
-//         add_task_to_thread_pool(tpool, task);
-//     }
-//     wait_until_thread_pool_idle(tpool);
-
-//     for (int j = 0; j < batched_operator->size; j++) {
-//         add_result_to_client_context(client_context, results[j], batched_operator->dbos[j]->handle);
-//     }
-//     free(results);
-// 	return "";
-// }
-
-
+// split column data into n chunks
 char* execute_batched_select_operator(ClientContext* client_context, BatchedOperator* batched_operator) {
     Column* column = batched_operator->dbos[0]->operator_fields.select_operator.gcolumn->column_pointer.column;
     Result** results = (Result**) malloc(sizeof(Result*) * batched_operator->size);
@@ -626,23 +583,22 @@ char* execute_batched_select_operator(ClientContext* client_context, BatchedOper
         pthread_mutex_init(&result_mutexes[j], NULL);
     }
 
-    int assigned_queries = 0;
+    int start_position = 0;
     for (int i = 0; i < tpool->num_threads; i++) {
-        int divided_queries_size = batched_operator->size / tpool->num_threads + 1;
-        int queries_left = batched_operator->size - assigned_queries;
-        int queries_size = queries_left < divided_queries_size ? queries_left : divided_queries_size;
+        int divided_chunk_size = column->size / tpool->num_threads + 1;
+        int size_left = column->size - start_position;
+        int chunk_size = (size_left) < divided_chunk_size ? size_left : divided_chunk_size;
         Task* task = (Task*) malloc(sizeof(Task));
         task->data = column->data;
-        task->start_position = 0;
-        task->num_operators = queries_size;
-        task->write_mutexes = result_mutexes + assigned_queries;
-        task->results = results + assigned_queries;
-        task->select_operators = select_operators + assigned_queries;
-        assigned_queries += queries_size;
-
+        task->start_position = start_position;
+        task->num_operators = batched_operator->size;
+        task->write_mutexes = result_mutexes;
+        task->results = results;
+        task->select_operators = select_operators;
         task->next = NULL;
-        task->scan_size = column->size;
+        task->scan_size = chunk_size;
         add_task_to_thread_pool(tpool, task);
+        start_position += chunk_size;
     }
     wait_until_thread_pool_idle(tpool);
 
@@ -652,6 +608,49 @@ char* execute_batched_select_operator(ClientContext* client_context, BatchedOper
     free(results);
 	return "";
 }
+
+// each thread runs full scan
+// char* execute_batched_select_operator(ClientContext* client_context, BatchedOperator* batched_operator) {
+//     Column* column = batched_operator->dbos[0]->operator_fields.select_operator.gcolumn->column_pointer.column;
+//     Result** results = (Result**) malloc(sizeof(Result*) * batched_operator->size);
+//     SelectOperator** select_operators = (SelectOperator**) malloc(sizeof(SelectOperator*) * batched_operator->size);
+//     pthread_mutex_t* result_mutexes = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t) * batched_operator->size);
+//     for (int j = 0; j < batched_operator->size; j++) {
+//         results[j] = (Result*) malloc(sizeof(Result));
+//         results[j]->data_type = INT;
+//         results[j]->num_tuples = 0;
+//         // TODO: add dynamic resizing
+//         results[j]->payload = malloc(sizeof(int) * column->size);
+//         select_operators[j] = &(batched_operator->dbos[j]->operator_fields.select_operator);
+//         pthread_mutex_init(&result_mutexes[j], NULL);
+//     }
+
+//     int assigned_queries = 0;
+//     for (int i = 0; i < tpool->num_threads; i++) {
+//         int divided_queries_size = batched_operator->size / tpool->num_threads + 1;
+//         int queries_left = batched_operator->size - assigned_queries;
+//         int queries_size = queries_left < divided_queries_size ? queries_left : divided_queries_size;
+//         Task* task = (Task*) malloc(sizeof(Task));
+//         task->data = column->data;
+//         task->start_position = 0;
+//         task->num_operators = queries_size;
+//         task->write_mutexes = result_mutexes + assigned_queries;
+//         task->results = results + assigned_queries;
+//         task->select_operators = select_operators + assigned_queries;
+//         assigned_queries += queries_size;
+
+//         task->next = NULL;
+//         task->scan_size = column->size;
+//         add_task_to_thread_pool(tpool, task);
+//     }
+//     wait_until_thread_pool_idle(tpool);
+
+//     for (int j = 0; j < batched_operator->size; j++) {
+//         add_result_to_client_context(client_context, results[j], batched_operator->dbos[j]->handle);
+//     }
+//     free(results);
+// 	return "";
+// }
 
 char* execute_batched_select_operator_single(ClientContext* client_context, BatchedOperator* batched_operator) {
     Column* column = batched_operator->dbos[0]->operator_fields.select_operator.gcolumn->column_pointer.column;

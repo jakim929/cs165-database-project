@@ -44,56 +44,6 @@
 // }
 
 // Chunked operator
-// void start_thread(ThreadPool_Thread* thread) {
-//     while (1) {
-//         pthread_mutex_lock(&(thread->tpool->task_queue->mutex));
-//         while(thread->tpool->task_queue->size == 0) {
-//             pthread_cond_wait(&(thread->tpool->task_queue->cond), &(thread->tpool->task_queue->mutex));
-//         }
-//         Task* task = pop_from_task_queue(thread->tpool->task_queue);
-//         pthread_mutex_unlock(&(thread->tpool->task_queue->mutex));
-        
-//         pthread_mutex_lock(&(thread->tpool->active_thread_count_mutex));
-//         thread->tpool->active_thread_count++;
-//         pthread_mutex_unlock(&(thread->tpool->active_thread_count_mutex));
-
-//         printf("thread[%d]: startpos[%zu] num_operators[%d] scan_size[%d]\n", thread->id, task->start_position, task->num_operators, task->scan_size);
-//         int vector_size = 4096;
-//         int end_position = task->start_position + task->scan_size;
-//         for (int j = task->start_position; j < end_position; j+= vector_size) {
-//             int intermediate_vector_size = j + vector_size > end_position ? end_position - j : vector_size;
-//             for(int i = j; i < j + intermediate_vector_size; i++) {
-//                 for (int k = 0; k < task->num_operators; k++) {
-//                     SelectOperator* select_operator = task->select_operators[k];
-//                     if (
-//                         (
-//                             select_operator->range_start.is_null ||
-//                             task->data[i] >= select_operator->range_start.value
-//                         ) && (
-//                             select_operator->range_end.is_null ||
-//                             task->data[i] < select_operator->range_end.value
-//                         )
-//                     ) {
-//                         pthread_mutex_lock(&task->write_mutexes[k]); 
-//                         ((int*) task->results[k]->payload)[task->results[k]->num_tuples++] = i;
-//                         pthread_mutex_unlock(&task->write_mutexes[k]); 
-//                     }
-//                 }
-//             }
-
-//         }
-        
-
-//         free(task);
-//         pthread_mutex_lock(&(thread->tpool->active_thread_count_mutex));
-//         thread->tpool->active_thread_count--;
-//         if (thread->tpool->active_thread_count == 0) {
-//             pthread_cond_signal(&thread->tpool->no_active_thread_cond);
-//         }
-//         pthread_mutex_unlock(&(thread->tpool->active_thread_count_mutex));
-//     }
-// }
-
 void start_thread(ThreadPool_Thread* thread) {
     while (1) {
         pthread_mutex_lock(&(thread->tpool->task_queue->mutex));
@@ -130,8 +80,10 @@ void start_thread(ThreadPool_Thread* thread) {
                     }
                 }
             }
+
         }
         
+        free(task);
         pthread_mutex_lock(&(thread->tpool->active_thread_count_mutex));
         thread->tpool->active_thread_count--;
         if (thread->tpool->active_thread_count == 0) {
@@ -140,6 +92,54 @@ void start_thread(ThreadPool_Thread* thread) {
         pthread_mutex_unlock(&(thread->tpool->active_thread_count_mutex));
     }
 }
+
+// One scan per core
+// void start_thread(ThreadPool_Thread* thread) {
+//     while (1) {
+//         pthread_mutex_lock(&(thread->tpool->task_queue->mutex));
+//         while(thread->tpool->task_queue->size == 0) {
+//             pthread_cond_wait(&(thread->tpool->task_queue->cond), &(thread->tpool->task_queue->mutex));
+//         }
+//         Task* task = pop_from_task_queue(thread->tpool->task_queue);
+//         pthread_mutex_unlock(&(thread->tpool->task_queue->mutex));
+        
+//         pthread_mutex_lock(&(thread->tpool->active_thread_count_mutex));
+//         thread->tpool->active_thread_count++;
+//         pthread_mutex_unlock(&(thread->tpool->active_thread_count_mutex));
+
+//         printf("thread[%d]: startpos[%zu] num_operators[%d] scan_size[%d]\n", thread->id, task->start_position, task->num_operators, task->scan_size);
+//         int vector_size = 4096;
+//         int end_position = task->start_position + task->scan_size;
+//         for (int j = task->start_position; j < end_position; j+= vector_size) {
+//             int intermediate_vector_size = j + vector_size > end_position ? end_position - j : vector_size;
+//             for(int i = j; i < j + intermediate_vector_size; i++) {
+//                 for (int k = 0; k < task->num_operators; k++) {
+//                     SelectOperator* select_operator = task->select_operators[k];
+//                     if (
+//                         (
+//                             select_operator->range_start.is_null ||
+//                             task->data[i] >= select_operator->range_start.value
+//                         ) && (
+//                             select_operator->range_end.is_null ||
+//                             task->data[i] < select_operator->range_end.value
+//                         )
+//                     ) {
+//                         pthread_mutex_lock(&task->write_mutexes[k]); 
+//                         ((int*) task->results[k]->payload)[task->results[k]->num_tuples++] = i;
+//                         pthread_mutex_unlock(&task->write_mutexes[k]); 
+//                     }
+//                 }
+//             }
+//         }
+        
+//         pthread_mutex_lock(&(thread->tpool->active_thread_count_mutex));
+//         thread->tpool->active_thread_count--;
+//         if (thread->tpool->active_thread_count == 0) {
+//             pthread_cond_signal(&thread->tpool->no_active_thread_cond);
+//         }
+//         pthread_mutex_unlock(&(thread->tpool->active_thread_count_mutex));
+//     }
+// }
 
 ThreadPool* initialize_thread_pool(int num_threads) {
     ThreadPool* tpool = (ThreadPool*) malloc(sizeof(ThreadPool));
