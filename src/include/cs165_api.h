@@ -61,20 +61,23 @@ typedef enum DataType {
 } DataType;
 
 struct Comparator;
-//struct ColumnIndex;
+
+typedef struct ColumnIndex {
+    int* positions;
+    int* sorted_data;
+    size_t size;
+} ColumnIndex;
 
 typedef struct Column {
     char name[MAX_SIZE_NAME]; 
     char path[MAX_PATH_NAME_SIZE];
     int* data;
-    // You will implement column indexes later. 
-    void* index;
     size_t size;
     size_t capacity;
-    //struct ColumnIndex *index;
-    //bool clustered;
+    ColumnIndex *index;
+    bool clustered;
+    bool sorted;
 } Column;
-
 
 /**
  * table
@@ -93,7 +96,8 @@ typedef struct Column {
 typedef struct Table {
     char name [MAX_SIZE_NAME];
     char base_directory [MAX_PATH_NAME_SIZE];
-    Column *columns;
+    Column* columns;
+    Column* clustered_index_column;
     size_t columns_capacity;
     size_t col_count;
     size_t table_length;
@@ -233,6 +237,7 @@ typedef struct Comparator {
  */
 typedef enum OperatorType {
     CREATE,
+    CREATE_INDEX,
     INSERT,
     LOAD,
     SELECT,
@@ -268,8 +273,21 @@ typedef struct CreateOperator {
     char name[MAX_SIZE_NAME]; 
     Db* db;
     Table* table;
+    Column* column;
     int col_count;
 } CreateOperator;
+
+typedef enum IndexType {
+    BTREE,
+    SORTED,
+} IndexType;
+
+typedef struct CreateIndexOperator {
+    Table* table;
+    Column* column;
+    IndexType type;
+    bool is_clustered;
+} CreateIndexOperator;
 
 /*
  * necessary fields for insertion
@@ -345,6 +363,7 @@ typedef struct PrintOperator {
  */
 typedef union OperatorFields {
     CreateOperator create_operator;
+    CreateIndexOperator create_index_operator;
     InsertOperator insert_operator;
     LoadOperator load_operator;
     SelectOperator select_operator;

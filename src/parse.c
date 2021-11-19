@@ -40,6 +40,55 @@ char* next_line(char** tokenizer, message_status* status) {
     return token;
 }
 
+DbOperator* parse_create_idx(char* create_arguments) {
+    message_status status = OK_DONE;
+    char** create_arguments_index = &create_arguments;
+    char* col_name = next_token(create_arguments_index, &status);
+    char* btree_or_sorted = next_token(create_arguments_index, &status);
+    char* clustered_or_unclustered = next_token(create_arguments_index, &status);
+
+    bool is_btree = strncmp(btree_or_sorted, "btree", 5) == 0;
+    bool is_sorted = strncmp(btree_or_sorted, "sorted", 6) == 0;
+
+    bool is_clustered = strncmp(clustered_or_unclustered, "clustered", 9) == 0;
+    bool is_unclustered = strncmp(clustered_or_unclustered, "unclustered", 11) == 0;
+
+    // not enough arguments
+    if (status == INCORRECT_FORMAT) {
+        return NULL;
+    }
+
+    if ((!is_btree && !is_sorted) || (!is_clustered && !is_unclustered)) {
+        return NULL;
+    }
+
+    // read and chop off last char, which should be a ')'
+    int last_char = strlen(clustered_or_unclustered) - 1;
+    if (clustered_or_unclustered[last_char] != ')') {
+        return NULL;
+    }
+    // replace the ')' with a null terminating character. 
+    clustered_or_unclustered[last_char] = '\0';
+
+    Table* table = NULL;
+    Column* column = NULL;
+    lookup_table_and_column(&table, &column, col_name);
+
+    if (!table || !column) {
+        cs165_log(stdout, "query unsupported. Bad table or column name");
+        return NULL; // QUERY_UNSUPPORTED
+    }
+
+    // make create dbo for column
+    DbOperator* dbo = malloc(sizeof(DbOperator));
+    dbo->type = CREATE_INDEX;
+    dbo->operator_fields.create_index_operator.table = table;
+    dbo->operator_fields.create_index_operator.column = column;
+    dbo->operator_fields.create_index_operator.type = is_btree ? BTREE: SORTED;
+    dbo->operator_fields.create_index_operator.is_clustered = is_clustered;
+    return dbo;
+}
+
 DbOperator* parse_create_col(char* create_arguments) {
     message_status status = OK_DONE;
     char** create_arguments_index = &create_arguments;
@@ -187,6 +236,8 @@ DbOperator* parse_create(char* create_arguments) {
                 dbo = parse_create_tbl(tokenizer_copy);
             } else if (strcmp(token, "col") == 0) {
                 dbo = parse_create_col(tokenizer_copy);
+            } else if (strcmp(token, "idx") == 0) {
+                dbo = parse_create_idx(tokenizer_copy);
             } else {
                 mes_status = UNKNOWN_COMMAND;
             }
