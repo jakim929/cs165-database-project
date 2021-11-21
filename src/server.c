@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <dirent.h>
+#include <time.h>
 
 #include "common.h"
 #include "parse.h"
@@ -204,7 +205,6 @@ Status shutdown_server() {
     return ret_status;
 }
 
-
 // Currently this main will setup the socket and accept a single client.
 // After handling the client, it will exit.
 // You WILL need to extend this to handle MULTIPLE concurrent clients
@@ -228,7 +228,6 @@ int main(void)
 
     int client_socket = 0;
     int did_shutdown = 0;
-
 
     long number_of_processors = sysconf(_SC_NPROCESSORS_ONLN);
     printf("%lu cores found\n", number_of_processors);

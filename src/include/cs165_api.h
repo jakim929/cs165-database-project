@@ -60,12 +60,31 @@ typedef enum DataType {
      FLOAT
 } DataType;
 
+typedef enum IndexType {
+    BTREE,
+    SORTED,
+} IndexType;
+
 struct Comparator;
 
-typedef struct ColumnIndex {
+typedef struct SortedIndex {
     int* positions;
-    int* sorted_data;
-    size_t size;
+    int* data;
+} SortedIndex;
+
+typedef struct BTreeIndex {
+    int* positions;
+    int* data;
+} BTreeIndex;
+
+typedef union IndexPointer {
+    BTreeIndex* btree_index;
+    SortedIndex* sorted_index;
+} IndexPointer;
+
+typedef struct ColumnIndex {
+    IndexType type;
+    IndexPointer index_pointer;
 } ColumnIndex;
 
 typedef struct Column {
@@ -74,9 +93,8 @@ typedef struct Column {
     int* data;
     size_t size;
     size_t capacity;
-    ColumnIndex *index;
-    bool clustered;
-    bool sorted;
+    ColumnIndex* index;
+    bool is_clustered;
 } Column;
 
 /**
@@ -277,11 +295,6 @@ typedef struct CreateOperator {
     int col_count;
 } CreateOperator;
 
-typedef enum IndexType {
-    BTREE,
-    SORTED,
-} IndexType;
-
 typedef struct CreateIndexOperator {
     Table* table;
     Column* column;
@@ -419,6 +432,8 @@ Status create_db(const char* db_name);
 Table* create_table(Db* db, const char* name, size_t num_columns, Status *status);
 
 Column* create_column(Table *table, char *name, bool sorted, Status *ret_status);
+
+void create_column_index(CreateIndexOperator* create_index_operator);
 
 void insert_row(Table *table, int* values, Status *ret_status);
 

@@ -173,6 +173,20 @@ Status create_db(const char* db_name) {
 	return ret_status;
 }
 
+void create_column_index(CreateIndexOperator* create_index_operator) {
+	ColumnIndex* index = (ColumnIndex*) malloc(sizeof(ColumnIndex));
+	index->type = create_index_operator->type;
+	if (index->type == BTREE) {
+		BTreeIndex* btree_index = (BTreeIndex*) malloc(sizeof(BTreeIndex));
+		index->index_pointer.btree_index = btree_index;
+
+	} else {
+		index->index_pointer.sorted_index = (SortedIndex*) malloc(sizeof(SortedIndex));
+	}
+	create_index_operator->column->index = index;
+	create_index_operator->column->is_clustered = create_index_operator->is_clustered;
+}
+
 int free_column(Column* column) {
 	if (!column) {
 		return 0;

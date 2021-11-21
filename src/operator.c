@@ -85,6 +85,8 @@ char* execute_db_operator(DbOperator* query) {
             }
             return "";
         }
+    } else if (query->type == CREATE_INDEX) {
+        create_column_index(&query->operator_fields.create_index_operator);
     } else if (query->type == INSERT) {
         Status insert_status;
         insert_row(query->operator_fields.insert_operator.table, query->operator_fields.insert_operator.values, &insert_status);

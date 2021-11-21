@@ -186,3 +186,10 @@ int maybe_create_directory(const char* pathname) {
     }
     return 1;
 }
+
+void print_arr(int* arr, int size) {
+    for (int i = 0; i < size; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+}
