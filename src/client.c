@@ -178,7 +178,7 @@ int main(void)
                 // Send start_load(tbl_name) message
                 strcat(load_payload, "start_load(");
                 strcat(load_payload, line_buffer);
-                strcat(load_payload, ")");
+                load_payload[strlen(load_payload) - 1] = ')';
                 send_message.payload = load_payload;
                 send_message.length = strlen(load_payload) + 1;
                 send_message_to_server(client_socket, &send_message, &recv_message);

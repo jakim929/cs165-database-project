@@ -145,6 +145,7 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
 	new_table->columns_capacity = num_columns;
 	new_table->table_length = 0;
 	new_table->table_capacity = INITIAL_COLUMN_CAPACITY;
+	new_table->clustered_index_column = NULL;
 
 	ret_status->code=OK;
 	return new_table;
@@ -185,6 +186,28 @@ void create_column_index(CreateIndexOperator* create_index_operator) {
 	}
 	create_index_operator->column->index = index;
 	create_index_operator->column->is_clustered = create_index_operator->is_clustered;
+
+	if (create_index_operator->is_clustered) {
+		create_index_operator->table->clustered_index_column = create_index_operator->column;
+	}
+}
+
+// Assumes table is empty
+void load_into_table(Table* table, int** cols, int int_size) {
+	size_t size = (size_t) int_size;
+	if (table->table_capacity < size) {
+		// TODO prob should size it to be larger
+		table->table_capacity = (size_t) ((double) size * 1.2);
+		for (size_t i = 0; i < table->col_count; i++) {
+			resize_column_capacity(&(table->columns[i]), table->table_capacity);
+
+		}
+	}
+	for (size_t i = 0; i < table->col_count; i++) {
+		memcpy(table->columns[i].data, cols[i], size * sizeof(int));
+		table->columns[i].size = size;
+	}
+	table->table_length = size;
 }
 
 int free_column(Column* column) {

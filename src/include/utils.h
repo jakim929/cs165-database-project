@@ -70,7 +70,9 @@ size_t read_file_to_buffer(char* buffer, const char* pathname);
 
 int maybe_create_directory(const char* pathname);
 
-void mergesort(int size, int* arr, int* posn_vec);
+void mergesort(int size, int* arr, int* res, int* posn_vec, int* posn_vec_res);
+
+void propagate_order(int size, int* arr, int* posn_vec);
 
 void print_arr(int* arr, int size);
 

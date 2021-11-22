@@ -444,6 +444,8 @@ void create_column_index(CreateIndexOperator* create_index_operator);
 
 void insert_row(Table *table, int* values, Status *ret_status);
 
+void load_into_table(Table* table, int** cols, int int_size);
+
 Result* execute_fetch_operator(Column* val_vec, GeneralizedColumn* posn_vec_gcolumn, Status* ret_status);
 
 int free_db(Db* db);

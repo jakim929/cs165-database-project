@@ -442,6 +442,39 @@ char* execute_load_operator(LoadOperator* load_operator) {
             row_count++;
         }
     }
+
+    // Has a clustered index, must sort the data
+    if (load_operator->table->clustered_index_column != NULL) {
+        size_t column_id = -1;
+        for (size_t i = 0; i < load_operator->table->col_count; i++) {
+            if (&load_operator->table->columns[i] == load_operator->table->clustered_index_column) {
+                column_id = i;
+                break;
+            }
+        }
+
+        int* posn_vec = (int*) malloc(sizeof(int) * row_count);
+        for(int i = 0; i < row_count; i++) {
+            posn_vec[i] = i;
+        }
+
+        int* primary_index_column = col_bufs[column_id];
+        
+        int* temp = (int*) malloc(sizeof(int) * row_count);
+        int* posn_vec_temp = (int*) malloc(sizeof(int) * row_count);
+
+        mergesort(row_count, primary_index_column, temp, posn_vec, posn_vec_temp);
+
+        // TODO make this multithreaded
+        for (size_t i = 0; i < load_operator->table->col_count; i++) {
+            if (column_id != i) {
+                printf("propagating order\n");
+                propagate_order(row_count, col_bufs[i], posn_vec);
+            }
+        }
+    }
+
+    load_into_table(load_operator->table, col_bufs, row_count);
     return "";
 }
 

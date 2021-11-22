@@ -43,6 +43,7 @@ int add_to_load_operator(ClientContext* client_context, char* payload) {
 int end_load(ClientContext* client_context) {
 	free(client_context->load_operator->data);
 	free(client_context->load_operator);
+	client_context->load_operator = NULL;
 	return 0;
 }
 
