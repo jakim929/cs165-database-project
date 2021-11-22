@@ -77,21 +77,13 @@ int handle_client(int client_socket) {
             recv_message.payload = recv_buffer;
             recv_message.payload[recv_message.length] = '\0';
             
-            // Task* task = (Task*) malloc(sizeof(Task));
-            // task->next = NULL;
-            // task->k = recv_message.length;
-            // add_task_to_thread_pool(tpool, task);
-            // wait_until_thread_pool_idle(tpool);
-            
-            // 1. Parse command
-            //    Query string is converted into a request for an database operator
             DbOperator* query = parse_command(recv_message.payload, &send_message, client_socket, client_context);
-            // 2. Handle request
-            //    Corresponding database operator is executed over the query
-            
+
             char* result;
             if (client_context->batched_operator != NULL) {
                 result = execute_db_operator_while_batching(query);
+            } else if (client_context->load_operator != NULL) {
+                result = execute_db_operator_while_loading(client_context, query, recv_message.payload);
             } else {
                 result = execute_db_operator(query);
             }
@@ -232,13 +224,6 @@ int main(void)
     long number_of_processors = sysconf(_SC_NPROCESSORS_ONLN);
     printf("%lu cores found\n", number_of_processors);
     tpool = initialize_thread_pool(7);
-    // for (int i = 0; i < 20; i++) {
-    //     Task* task = (Task*) malloc(sizeof(Task));
-    //     task->next = NULL;
-    //     task->k = i;
-    //     add_task_to_thread_pool(tpool, task);
-    // }
-    // wait_until_thread_pool_idle(tpool);
 
     while(!did_shutdown && (client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) != -1) {         
         did_shutdown = handle_client(client_socket);

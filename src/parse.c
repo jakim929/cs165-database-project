@@ -646,23 +646,56 @@ Table* get_table_from_column_names(char* column_names, message* send_message) {
     return table;
 }
 
-DbOperator* parse_load(char* query_command, message* send_message) {
-    if (strncmp(query_command, "\n", 1) == 0) {
-        query_command++;
-        char** command_index = &query_command;
-        char* column_names = next_line(command_index, &send_message->status);
+// DbOperator* parse_load(char* query_command, message* send_message) {
+//     if (strncmp(query_command, "\n", 1) == 0) {
+//         query_command++;
+//         char** command_index = &query_command;
+//         char* column_names = next_line(command_index, &send_message->status);
 
-        Table* table = get_table_from_column_names(column_names, send_message);
+//         Table* table = get_table_from_column_names(column_names, send_message);
         
-        if (table == NULL) {
+//         if (table == NULL) {
+//             send_message->status = OBJECT_NOT_FOUND;
+//             return NULL;
+//         }
+
+//         DbOperator* dbo = malloc(sizeof(DbOperator));
+//         dbo->type = LOAD;
+//         dbo->operator_fields.load_operator.table = table;
+//         dbo->operator_fields.load_operator.load_data = *command_index;
+    
+//         return dbo;
+//     } else {
+//         send_message->status = UNKNOWN_COMMAND;
+//         return NULL;
+//     }
+// }
+
+DbOperator* parse_start_load(char* query_command, message* send_message) {
+    if (strncmp(query_command, "(", 1) == 0) {
+        query_command++;
+        char* tbl_name = query_command;
+        int last_char = strlen(tbl_name) - 1;
+        if (last_char < 0 || tbl_name[last_char] != ')') {
+            return NULL;
+        }
+        // replace final ')' with null-termination character.
+        tbl_name[last_char] = '\0';
+        if (send_message->status == INCORRECT_FORMAT) {
+            return NULL;
+        }
+
+        Table* tbl = lookup_table(tbl_name);
+
+        // lookup the table and make sure it exists.
+        if (tbl == NULL) {
             send_message->status = OBJECT_NOT_FOUND;
             return NULL;
         }
 
         DbOperator* dbo = malloc(sizeof(DbOperator));
-        dbo->type = LOAD;
-        dbo->operator_fields.load_operator.table = table;
-        dbo->operator_fields.load_operator.load_data = *command_index;
+        dbo->type = START_LOAD;
+        dbo->operator_fields.start_load_operator.table = tbl;
     
         return dbo;
     } else {
@@ -686,6 +719,11 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     // a second option is to malloc the dbo here (instead of inside the parse commands). Either way, you should track the dbo
     // and free it when the variable is no longer needed. 
     DbOperator *dbo = NULL; // = malloc(sizeof(DbOperator));
+
+    // Early return if currently batching load operator
+    if (context->load_operator != NULL && strncmp(query_command, "end_load", 8) != 0) {
+        return NULL;
+    }
 
     if (strncmp(query_command, "--", 2) == 0) {
         send_message->status = OK_DONE;
@@ -755,9 +793,13 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else if (strncmp(query_command, "print", 5) == 0) {
         query_command += 5;
         dbo = parse_print(query_command, context, send_message);
-    } else if (strncmp(query_command, "load", 4) == 0) {
-        query_command += 4;
-        dbo = parse_load(query_command, send_message);
+    } else if (strncmp(query_command, "start_load", 10) == 0) {
+        query_command += 10;
+        dbo = parse_start_load(query_command, send_message);
+    } else if (strncmp(query_command, "end_load", 8) == 0) {
+        query_command += 8;
+        dbo = malloc(sizeof(DbOperator));
+        dbo->type = END_LOAD;
     } else if (strncmp(query_command, "shutdown", 8) == 0) {
         query_command += 8;
         dbo = malloc(sizeof(DbOperator));

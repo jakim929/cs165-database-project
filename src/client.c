@@ -164,9 +164,6 @@ int main(void)
 
                 size_t line_buffer_size = MAX_FILE_LINE_SIZE;
                 char* line_buffer = (char*) malloc(sizeof(char) * line_buffer_size);
-
-                // load\n and column names, will be appended to every sent chunk
-                char load_header[MAX_FILE_LINE_SIZE + 5] = "load\n";
                 
                 if (getline(&line_buffer, &line_buffer_size, fp) == -1) {
                     log_err("file incorrect format.\n");
@@ -174,13 +171,20 @@ int main(void)
                     free(line_buffer);
                     break;
                 }
-                strcpy(load_header + 5, line_buffer);
 
                 char load_payload[MAX_LOAD_PAYLOAD_SIZE] = "";
+                load_payload[0] = '\0';
 
-                strcat(load_payload, load_header);
-                size_t header_size = strlen(load_header);
-                size_t payload_size = header_size;
+                // Send start_load(tbl_name) message
+                strcat(load_payload, "start_load(");
+                strcat(load_payload, line_buffer);
+                strcat(load_payload, ")");
+                send_message.payload = load_payload;
+                send_message.length = strlen(load_payload) + 1;
+                send_message_to_server(client_socket, &send_message, &recv_message);
+                load_payload[0] = '\0';
+
+                size_t payload_size = 0;
                 ssize_t read_size;
 
                 // ADD BUFFER PER LINE
@@ -195,15 +199,22 @@ int main(void)
                         send_message.length = strlen(load_payload) + 1;
                         send_message_to_server(client_socket, &send_message, &recv_message);
                         
-                        payload_size = header_size;
-                        load_payload[header_size] = '\0';
+                        payload_size = 0;
+                        load_payload[0] = '\0';
                     }
                 }
-                if (payload_size > header_size) {
+                if (payload_size > 0) {
                     send_message.payload = load_payload;
                     send_message.length = strlen(load_payload) + 1;
                     send_message_to_server(client_socket, &send_message, &recv_message);
                 }
+
+                // Send end_load() message
+                load_payload[0] = '\0';
+                strcat(load_payload, "end_load()");
+                send_message.payload = load_payload;
+                send_message.length = strlen(load_payload) + 1;
+                send_message_to_server(client_socket, &send_message, &recv_message);
 
                 fclose(fp);
                 free(line_buffer);

@@ -33,4 +33,10 @@ int start_batch_query(ClientContext* client_context);
 
 int end_batch_query(ClientContext* client_context);
 
+int start_load(ClientContext* client_context, LoadOperator* load_operator);
+
+int add_to_load_operator(ClientContext* client_context, char* payload);
+
+int end_load(ClientContext* client_context);
+
 #endif

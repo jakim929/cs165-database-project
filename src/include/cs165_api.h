@@ -44,6 +44,8 @@ SOFTWARE.
 #define INITIAL_PRINT_OPERATOR_BUFFER_SIZE 8192
 
 typedef struct BatchedOperator BatchedOperator;
+typedef struct LoadOperator LoadOperator;
+
 
 /**
  * EXTRA
@@ -235,6 +237,7 @@ typedef struct ClientContext {
     int chandles_in_use;
     int chandle_slots;
     BatchedOperator* batched_operator;
+    LoadOperator* load_operator;
 } ClientContext;
 
 /**
@@ -270,6 +273,8 @@ typedef enum OperatorType {
     SHUTDOWN,
     BATCH_QUERIES,
     BATCH_EXECUTE,
+    START_LOAD,
+    END_LOAD,
 } OperatorType;
 
 
@@ -309,16 +314,17 @@ typedef struct InsertOperator {
     Table* table;
     int* values;
 } InsertOperator;
-/*
- * necessary fields for insertion
- */
-typedef struct LoadOperator {
-    // char* file_name;
+
+typedef struct StartLoadOperator {
     Table* table;
-    char* load_data;
-    // int** load_columns;
-    // int num_rows;
-} LoadOperator;
+} StartLoadOperator;
+
+struct LoadOperator {
+    Table* table;
+    char* data;
+    int size;
+    int capacity;
+};
 /*
  * necessary fields for select operator
  */
@@ -379,6 +385,7 @@ typedef union OperatorFields {
     CreateIndexOperator create_index_operator;
     InsertOperator insert_operator;
     LoadOperator load_operator;
+    StartLoadOperator start_load_operator;
     SelectOperator select_operator;
     PrintOperator print_operator;
     FetchOperator fetch_operator;
@@ -444,6 +451,8 @@ int free_db(Db* db);
 Status shutdown_server();
 
 char* execute_db_operator_while_batching(DbOperator* query);
+
+char* execute_db_operator_while_loading(ClientContext* client_context, DbOperator* query, char* payload);
 
 char* execute_db_operator(DbOperator* query);
 

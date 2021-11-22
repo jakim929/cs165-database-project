@@ -32,6 +32,16 @@ Result* execute_sub_operator(SubOperator* sub_operator);
  *      How will you ensure different queries invoke different execution paths in your code?
  **/
 
+char* execute_db_operator_while_loading(ClientContext* client_context, DbOperator* query, char* payload) {
+    if (query && query->type == END_LOAD) {
+        execute_load_operator(query->context->load_operator);
+        end_load(query->context);
+    } else {
+        add_to_load_operator(client_context, payload);
+    }
+    return "";
+}
+
 char* execute_db_operator_while_batching(DbOperator* query) {
     if (query->type == BATCH_EXECUTE) {
         return batch_execute(query->context, query->context->batched_operator);
@@ -56,6 +66,9 @@ char* execute_db_operator(DbOperator* query) {
 
     if (query->type == BATCH_QUERIES) {
         start_batch_query(query->context);
+        return "";
+    } else if(query->type == START_LOAD) {
+        start_load(query->context, &query->operator_fields.load_operator);
         return "";
     } else if (query->type == CREATE){
         if (query->operator_fields.create_operator.create_type == _DB){
@@ -177,9 +190,6 @@ char* execute_db_operator(DbOperator* query) {
             }
         }
         return "";
-    } else if (query->type == LOAD) {
-        char* load_result = execute_load_operator(&(query->operator_fields.load_operator));
-        return load_result;
     } else if (query->type == PRINT) {
         char* print_result = execute_print_operator(&(query->operator_fields.print_operator));
         return print_result;
@@ -404,22 +414,34 @@ Result* execute_sub_operator(SubOperator* sub_operator) {
 }
 
 char* execute_load_operator(LoadOperator* load_operator) {
-    Status insert_status;
-    int* row_buffer = (int*) malloc(load_operator->table->col_count * sizeof(int));
+    int buf_capacity = 65536;
+    int** col_bufs = (int**) malloc(sizeof(int*) * load_operator->table->col_count);
+    for(size_t i = 0; i < load_operator->table->col_count; i++) {
+        col_bufs[i] = (int*) malloc(sizeof(int) * buf_capacity);
+    }
+
+    // Status insert_status;
     char* line = NULL;
-    while ((line = strsep(&(load_operator->load_data), "\n")) != NULL) {
+    int row_count = 0;
+    while ((line = strsep(&(load_operator->data), "\n")) != NULL) {
+        if (row_count == buf_capacity) {
+            buf_capacity *= 2;
+            for(size_t i = 0; i < load_operator->table->col_count; i++) {
+                col_bufs[i] = (int*) realloc(col_bufs[i], sizeof(int) * buf_capacity);
+            }
+        }
+
+        // TODO maybe replace with for loop
         size_t col_inserted = 0;
         char* value = NULL;
         while ((value = strsep(&line, ",")) != NULL) {
             char* temp;
-            row_buffer[col_inserted++] = (int) strtol(value, &temp, 0);
-            if (col_inserted == load_operator->table->col_count) {
-                col_inserted = 0;
-                insert_row(load_operator->table, row_buffer, &insert_status);
-            }
-        }        
+            col_bufs[col_inserted++][row_count] = (int) strtol(value, &temp, 0);
+        }
+        if (col_inserted == load_operator->table->col_count) {
+            row_count++;
+        }
     }
-    free(row_buffer);
     return "";
 }
 

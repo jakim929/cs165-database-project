@@ -4,8 +4,10 @@
 #include "catalog.h"
 #include "client_context.h"
 #include "batched_operator.h"
+#include "cs165_api.h"
 
 #define INITIAL_CHANDLE_CAPACITY 128
+#define INITIAL_LOAD_DATA_CHUNK_SIZE 8192
 
 ClientContext* initialize_client_context() {
 	ClientContext* client_context = (ClientContext*) malloc(sizeof(ClientContext));
@@ -13,7 +15,35 @@ ClientContext* initialize_client_context() {
 	client_context->chandle_slots = INITIAL_CHANDLE_CAPACITY;
 	client_context->chandles_in_use = 0;
 	client_context->batched_operator = NULL;
+	client_context->load_operator = NULL;
 	return client_context;
+}
+
+int start_load(ClientContext* client_context, LoadOperator* load_operator) {
+	client_context->load_operator = (LoadOperator*) malloc(sizeof(LoadOperator));
+	client_context->load_operator->table = load_operator->table;
+	client_context->load_operator->data = (char*) malloc(INITIAL_LOAD_DATA_CHUNK_SIZE);
+	client_context->load_operator->data[0] = '\0';
+	client_context->load_operator->capacity = INITIAL_LOAD_DATA_CHUNK_SIZE;
+	client_context->load_operator->size = 0;
+	return 0;
+}
+
+int add_to_load_operator(ClientContext* client_context, char* payload) {
+	int payload_size = strlen(payload);
+	if (client_context->load_operator->size + payload_size > client_context->load_operator->capacity) {
+		client_context->load_operator->data = realloc(client_context->load_operator->data, client_context->load_operator->capacity * 2);
+		client_context->load_operator->capacity *= 2;
+	}
+	strcpy(client_context->load_operator->data + client_context->load_operator->size, payload);
+	client_context->load_operator->size += payload_size;
+	return 0;
+}
+
+int end_load(ClientContext* client_context) {
+	free(client_context->load_operator->data);
+	free(client_context->load_operator);
+	return 0;
 }
 
 int start_batch_query(ClientContext* client_context) {
