@@ -9,6 +9,10 @@
 #include "cs165_api.h"
 #include "catalog.h"
 #include "utils.h"
+#include "column_index.h"
+#include "column.h"
+#include "table.h"
+#include "mmap_helper.h"
 
 // In this class, there will always be only one active database at a time
 Db *current_db;
@@ -31,40 +35,20 @@ void insert_row(Table* table, int* values, Status *ret_status) {
 }
 
 int resize_column_capacity(Column* column, size_t new_capacity) {
-	int rflag = msync(column->data, column->capacity * sizeof(int), MS_SYNC);
-    if(rflag == -1)
-    {
-        return -1;
-    }
-    rflag = munmap(column->data, column->capacity * sizeof(int));
-    if(rflag == -1)
-    {
-        return -1;
-    }
+	printf("about to resize capacity\n");
+	char data_path[MAX_PATH_NAME_SIZE] = "";
+	get_data_path_from_column(data_path, column);
 
-	int fd = open(column->path, O_RDWR | O_CREAT, (mode_t)0600);
-
-	if(fd == -1) {
-		return -1;
+	column->data = (int*) resize_mmap_write_capacity(column->data, data_path, column->capacity * sizeof(int), new_capacity * sizeof(int));
+	if (column->data == NULL) {
+		return 0;
 	}
 
-	rflag = lseek(fd, (new_capacity * sizeof(int)) - 1, SEEK_SET);
-
-	if (rflag == -1) {
-		close(fd);
-		return -1;
+	if (column->index != NULL) {
+		resize_column_index(column->index, column->capacity, new_capacity);
 	}
-
-	rflag = write(fd, "", 1);
-
-	if (rflag == -1) {
-		close(fd);
-		return -1;
-	}
-
-	column->data = (int*) mmap(0, (new_capacity * sizeof(int)), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+	
 	column->capacity = new_capacity;
-	close(fd);
 	return 0;
 }
 
@@ -79,47 +63,19 @@ Column* create_column(Table *table, char *name, bool sorted, Status *ret_status)
 	struct Column* new_column = &(table->columns[table->col_count - table->columns_capacity]);
 	table->columns_capacity--;
 
+	new_column->table = table;
 	new_column->capacity = table->table_capacity;
 	new_column->size = 0;
+	new_column->index = NULL;
 
 	strncpy(new_column->name, name, MAX_SIZE_NAME);
-	new_column->path[0] = '\0';
-	strcat(new_column->path, table->base_directory);
-	strcat(new_column->path, "/");
-	strcat(new_column->path, table->name);
-	strcat(new_column->path, ".");
-	strcat(new_column->path, name);
-	strcat(new_column->path, ".data");
-	
-	int rflag = -1;
-	int fd = open(new_column->path, O_RDWR | O_CREAT, (mode_t)0600);
 
-	if(fd == -1) {
-		ret_status->code = ERROR;
-		return NULL;
-	}
+	char data_path[MAX_PATH_NAME_SIZE] = "";
+	get_data_path_from_column(data_path, new_column);
 
-	rflag = lseek(fd, (new_column->capacity * sizeof(int)) - 1, SEEK_SET);
-
-	if (rflag == -1) {
-		close(fd);
-		ret_status->code = ERROR;
-		return NULL;
-	}
-
-	rflag = write(fd, "", 1);
-
-	if (rflag == -1) {
-		close(fd);
-		ret_status->code = ERROR;
-		return NULL;
-	}
-
-	new_column->data = (int*) mmap(0, (new_column->capacity * sizeof(int)), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-
-	close(fd);
-
+	new_column->data = mmap_to_write(data_path, new_column->capacity * sizeof(int));
 	ret_status->code = OK;
+
 	return new_column;
 }
 
@@ -145,7 +101,8 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
 	new_table->columns_capacity = num_columns;
 	new_table->table_length = 0;
 	new_table->table_capacity = INITIAL_COLUMN_CAPACITY;
-	new_table->clustered_index_column = NULL;
+	new_table->has_clustered_index = false;
+	new_table->clustered_index_id = 0;
 
 	ret_status->code=OK;
 	return new_table;
@@ -174,47 +131,100 @@ Status create_db(const char* db_name) {
 	return ret_status;
 }
 
-void create_column_index(CreateIndexOperator* create_index_operator) {
-	ColumnIndex* index = (ColumnIndex*) malloc(sizeof(ColumnIndex));
-	index->type = create_index_operator->type;
-	if (index->type == BTREE) {
-		BTreeIndex* btree_index = (BTreeIndex*) malloc(sizeof(BTreeIndex));
-		index->index_pointer.btree_index = btree_index;
+// Assumes column is empty
+void load_into_column(Column* column, int* buffer, size_t size) {
+	memcpy(column->data, buffer, size * sizeof(int));
+	column->size = size;
 
-	} else {
-		index->index_pointer.sorted_index = (SortedIndex*) malloc(sizeof(SortedIndex));
+	if (column->index != NULL) {
+		if (column->index->type == SORTED) {
+			memcpy(column->index->index_pointer.sorted_index->data, buffer, size * sizeof(int));
+				for (size_t i = 0; i < size; i++) {
+					column->index->index_pointer.sorted_index->positions[i] = i;
+				}
+			if (!column->is_clustered) {
+				int* result = (int*) malloc(sizeof(int) * size);
+				int* posn_vec_result = (int*) malloc(sizeof(int) * size);
+				printf("hello! creating unclustered sorted index for %s\n", column->name);
+				mergesort(
+					size,
+					column->index->index_pointer.sorted_index->data,
+					result,
+					column->index->index_pointer.sorted_index->positions,
+					posn_vec_result
+				);
+				printf("%d rand\n", column->index->index_pointer.sorted_index->positions[200]);
+				free(result);
+				free(posn_vec_result);
+			}
+		}
 	}
-	create_index_operator->column->index = index;
-	create_index_operator->column->is_clustered = create_index_operator->is_clustered;
-
-	if (create_index_operator->is_clustered) {
-		create_index_operator->table->clustered_index_column = create_index_operator->column;
-	}
-}
+} 
 
 // Assumes table is empty
 void load_into_table(Table* table, int** cols, int int_size) {
 	size_t size = (size_t) int_size;
+	printf("%zu size to load\n", size);
 	if (table->table_capacity < size) {
-		// TODO prob should size it to be larger
+	printf("%zu size to load, about to resize\n", size);
+
+		// TODO prob should size it to be larger;
 		table->table_capacity = (size_t) ((double) size * 1.2);
 		for (size_t i = 0; i < table->col_count; i++) {
 			resize_column_capacity(&(table->columns[i]), table->table_capacity);
-
 		}
 	}
 	for (size_t i = 0; i < table->col_count; i++) {
-		memcpy(table->columns[i].data, cols[i], size * sizeof(int));
-		table->columns[i].size = size;
+		load_into_column(&table->columns[i], cols[i], size);
 	}
 	table->table_length = size;
 }
 
+int free_column_index(ColumnIndex* index, size_t capacity) {
+	int rflag = 0;
+	if (index->type == SORTED) {
+		rflag = msync(index->index_pointer.sorted_index->data, capacity * sizeof(int), MS_SYNC);
+		if(rflag == -1)
+		{
+			return -1;
+		}
+		rflag = munmap(index->index_pointer.sorted_index->data, capacity * sizeof(int));
+		if(rflag == -1)
+		{
+			return -1;
+		}
+		rflag = msync(index->index_pointer.sorted_index->positions, capacity * sizeof(int), MS_SYNC);
+		if(rflag == -1)
+		{
+			return -1;
+		}
+		rflag = munmap(index->index_pointer.sorted_index->positions, capacity * sizeof(int));
+		if(rflag == -1)
+		{
+			return -1;
+		}
+
+	} else {
+
+	}
+	return 0;
+}
+
 int free_column(Column* column) {
+	persist_col_catalog(column);
 	if (!column) {
 		return 0;
 	}
-    int rflag = msync(column->data, column->capacity * sizeof(int), MS_SYNC);
+	int rflag = 0;
+	if (column->index != NULL) {
+		rflag = free_column_index(column->index, column->capacity);
+		if(rflag == -1)
+		{
+			return -1;
+		}
+	}
+
+    rflag = msync(column->data, column->capacity * sizeof(int), MS_SYNC);
     if(rflag == -1)
     {
         return -1;

@@ -45,6 +45,7 @@ SOFTWARE.
 
 typedef struct BatchedOperator BatchedOperator;
 typedef struct LoadOperator LoadOperator;
+typedef struct Table Table;
 
 
 /**
@@ -70,6 +71,8 @@ typedef enum IndexType {
 struct Comparator;
 
 typedef struct SortedIndex {
+    char position_path[MAX_PATH_NAME_SIZE];
+    char data_path[MAX_PATH_NAME_SIZE];
     int* positions;
     int* data;
 } SortedIndex;
@@ -90,14 +93,20 @@ typedef struct ColumnIndex {
 } ColumnIndex;
 
 typedef struct Column {
+    Table* table;
     char name[MAX_SIZE_NAME]; 
-    char path[MAX_PATH_NAME_SIZE];
     int* data;
     size_t size;
     size_t capacity;
     ColumnIndex* index;
     bool is_clustered;
 } Column;
+
+typedef struct PersistedColumnCatalog {
+    char name [MAX_SIZE_NAME];
+    char index_type[32];
+    bool is_clustered;
+} PersistedColumnCatalog;
 
 /**
  * table
@@ -113,24 +122,27 @@ typedef struct Column {
  * - table_length, the size of the columns in the table.
  **/
 
-typedef struct Table {
+struct Table {
     char name [MAX_SIZE_NAME];
     char base_directory [MAX_PATH_NAME_SIZE];
     Column* columns;
-    Column* clustered_index_column;
+    size_t clustered_index_id;
     size_t columns_capacity;
     size_t col_count;
     size_t table_length;
     size_t table_capacity;
-} Table;
+    bool has_clustered_index;
+};
 
 typedef struct PersistedTableCatalog {
     char name [MAX_SIZE_NAME];
     char base_directory [MAX_PATH_NAME_SIZE];
     size_t columns_capacity;
+    size_t clustered_index_id;
     size_t col_count;
     size_t table_length;
     size_t table_capacity;
+    bool has_clustered_index;
     char column_names[MAX_SIZE_NAME * 256];
 } PersistedTableCatalog;
 

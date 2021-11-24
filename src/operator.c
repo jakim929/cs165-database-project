@@ -10,6 +10,7 @@
 #include "client_context.h"
 #include "batched_operator.h"
 #include "thread_pool.h"
+#include "sorted_search.h"
 
 char* batch_execute(ClientContext* client_context, BatchedOperator* batched_operator);
 char* execute_load_operator(LoadOperator* load_operator);
@@ -238,6 +239,21 @@ Result* select_from_column(GeneralizedColumn* gcolumn, NullableInt* range_start,
     Result* result = (Result*) malloc(sizeof(Result));
     result->num_tuples = 0;
 
+    if (gcolumn->column_type == COLUMN) {
+        if (gcolumn->column_pointer.column->index != NULL) {
+            ColumnIndex* index = gcolumn->column_pointer.column->index;
+            if (index->type == SORTED) {
+                result->data_type = INT;
+                result->payload = malloc(sizeof(int) * data_size);
+                SortedIndex* sorted_index =index->index_pointer.sorted_index;
+                int start_pos, end_pos;
+                get_range_of(&start_pos, &end_pos, sorted_index->data, data_size, range_start, range_end);
+                memcpy(result->payload, sorted_index->positions + start_pos, (end_pos - start_pos + 1) * sizeof(int));
+            }
+
+        }
+    }
+
 	int* posn_vec = (int*) malloc(sizeof(int) * data_size);
 	for (size_t i = 0; i < data_size; i++) {
 		// TODO: Try splitting out this if statement?
@@ -444,21 +460,14 @@ char* execute_load_operator(LoadOperator* load_operator) {
     }
 
     // Has a clustered index, must sort the data
-    if (load_operator->table->clustered_index_column != NULL) {
-        size_t column_id = -1;
-        for (size_t i = 0; i < load_operator->table->col_count; i++) {
-            if (&load_operator->table->columns[i] == load_operator->table->clustered_index_column) {
-                column_id = i;
-                break;
-            }
-        }
+    if (load_operator->table->has_clustered_index) {
 
         int* posn_vec = (int*) malloc(sizeof(int) * row_count);
         for(int i = 0; i < row_count; i++) {
             posn_vec[i] = i;
         }
 
-        int* primary_index_column = col_bufs[column_id];
+        int* primary_index_column = col_bufs[load_operator->table->clustered_index_id];
         
         int* temp = (int*) malloc(sizeof(int) * row_count);
         int* posn_vec_temp = (int*) malloc(sizeof(int) * row_count);
@@ -467,7 +476,7 @@ char* execute_load_operator(LoadOperator* load_operator) {
 
         // TODO make this multithreaded
         for (size_t i = 0; i < load_operator->table->col_count; i++) {
-            if (column_id != i) {
+            if (load_operator->table->clustered_index_id != i) {
                 printf("propagating order\n");
                 propagate_order(row_count, col_bufs[i], posn_vec);
             }

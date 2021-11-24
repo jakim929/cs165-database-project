@@ -8,32 +8,13 @@
 
 #include "cs165_api.h"
 #include "utils.h"
+#include "table.h"
+#include "column.h"
+#include "mmap_helper.h"
+#include "column_index.h"
+#include "catalog.h"
 
-int unpersist_tbl(Table* tbl, char* tbl_catalog_path);
-int unpersist_col(Column* col, char* name, char* col_data_path, size_t column_size, size_t column_capacity);
 void print_db_data(Db* db);
-
-void* mmap_file_for_read(char* path, size_t size) {
-	int rflag = -1;
-	int fd = open(path, O_RDWR, (mode_t)0600);
-    if(fd == -1) {
-		return NULL;
-	}
-	rflag = lseek(fd, size - 1, SEEK_SET);
-	if (rflag == -1) {
-		close(fd);
-		return NULL;
-	}
-	rflag = write(fd, "", 1);
-	if (rflag == -1) {
-		close(fd);
-		return NULL;
-	}
-
-    void* ptr = mmap(0, size, PROT_READ, MAP_SHARED, fd, 0);
-	close(fd);
-    return ptr;
-}
 
 Db* unpersist_db(char* db_name) {
     char db_catalog_path[MAX_PATH_NAME_SIZE] = "";
@@ -44,7 +25,7 @@ Db* unpersist_db(char* db_name) {
 	strcat(db_catalog_path, db_name);
 	strcat(db_catalog_path, ".db");
 
-    PersistedDbCatalog* db_catalog = (PersistedDbCatalog*) mmap_file_for_read(db_catalog_path, sizeof(PersistedDbCatalog));
+    PersistedDbCatalog* db_catalog = (PersistedDbCatalog*) mmap_to_read(db_catalog_path, sizeof(PersistedDbCatalog));
 
     struct Db* db = (Db*) malloc(sizeof(Db));
     db->tables_size = db_catalog->tables_size;
@@ -92,7 +73,7 @@ Db* unpersist_db(char* db_name) {
 }
 
 int unpersist_tbl(Table* tbl, char* tbl_catalog_path) {
-    PersistedTableCatalog* tbl_catalog = (PersistedTableCatalog*) mmap_file_for_read(tbl_catalog_path, sizeof(PersistedTableCatalog));
+    PersistedTableCatalog* tbl_catalog = (PersistedTableCatalog*) mmap_to_read(tbl_catalog_path, sizeof(PersistedTableCatalog));
 	strcpy(tbl->name, tbl_catalog->name);
     strcpy(tbl->base_directory, tbl_catalog->base_directory);
     tbl->col_count = tbl_catalog->col_count;
@@ -103,21 +84,13 @@ int unpersist_tbl(Table* tbl, char* tbl_catalog_path) {
 
     char *tokenizer = NULL;
     const char delimiter[2] = ",";
-    char col_data_path[MAX_PATH_NAME_SIZE] = "";
     size_t col_i = 0;
 	char* col_names = (char*) malloc((strlen(tbl_catalog->column_names) + 1) * sizeof(char));
 	strcpy(col_names, tbl_catalog->column_names);
 
     char* col_name = strtok_r(col_names, delimiter, &tokenizer);
     while(col_name != NULL) {
-		col_data_path[0] = '\0';
-		strcat(col_data_path, tbl->base_directory);
-		strcat(col_data_path, "/");
-		strcat(col_data_path, tbl->name);
-		strcat(col_data_path, ".");
-		strcat(col_data_path, col_name);
-		strcat(col_data_path, ".data");
-        if (unpersist_col(&tbl->columns[col_i], col_name, col_data_path, tbl->table_length, tbl->table_capacity) < 0) {
+        if (unpersist_col(&tbl->columns[col_i], tbl, col_name, tbl->table_length, tbl->table_capacity) < 0) {
 			return -1;
         }
         col_name = strtok_r(NULL, delimiter, &tokenizer);
@@ -130,36 +103,47 @@ int unpersist_tbl(Table* tbl, char* tbl_catalog_path) {
     return 0;
 }
 
-// pass initial length later
-int unpersist_col(Column* col, char* name, char* col_data_path, size_t column_size, size_t column_capacity) {
-	strcpy(col->name, name);
-    strcpy(col->path, col_data_path);
-    
-    int rflag = -1;
-	int fd = open(col->path, O_RDWR | O_CREAT, (mode_t)0600);
-
-	if(fd == -1) {
-		return -1;
-	}
-
-	rflag = lseek(fd, (column_capacity * sizeof(int)) - 1, SEEK_SET);
-
-	if (rflag == -1) {
-		close(fd);
-		return -1;
-	}
-
-	rflag = write(fd, "", 1);
-
-	if (rflag == -1) {
-		close(fd);
-		return -1;
-	}
-
-	col->data = (int*) mmap(0, (column_capacity * sizeof(int)), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+int unpersist_col(Column* col, Table* table, char* column_name, size_t column_size, size_t column_capacity) {
+	strcpy(col->name, column_name);
 	col->size = column_size;
 	col->capacity = column_capacity;
-	close(fd);
+	col->table = table;
+
+	printf("unpersisting %s with cap %zu\n", column_name, col->capacity);
+
+	char data_path[MAX_PATH_NAME_SIZE] = "";
+	get_column_data_path(data_path, table->base_directory, table->name, column_name);
+
+	col->data = (int*) mmap_to_write(data_path, column_capacity * sizeof(int));
+
+	char catalog_path[MAX_PATH_NAME_SIZE] = "";
+	get_column_catalog_path(catalog_path, table->base_directory, table->name, column_name);
+	PersistedColumnCatalog* col_catalog = (PersistedColumnCatalog*) mmap_to_read(catalog_path, sizeof(PersistedColumnCatalog));
+
+	col->is_clustered = col_catalog->is_clustered;
+	col->index = NULL;
+	if (strlen(col_catalog->index_type) == 0) {
+		printf("no index found for [%s]\n", column_name);
+	} else {
+		printf("index found for [%s][%s]\n", column_name, col_catalog->index_type);
+
+		ColumnIndex* column_index = (ColumnIndex*) malloc(sizeof(ColumnIndex));
+		if (strncmp(col_catalog->index_type, "SORTED", 6) == 0) {
+			printf("sorted index found for [%s]\n", column_name);
+
+			column_index->type = SORTED;
+			column_index->index_pointer.sorted_index = create_sorted_index(
+				table->base_directory,
+				table->name,
+				col->name,
+				col->capacity
+			);
+		} else if (strncmp(col_catalog->index_type, "BTREE", 5) == 0) {
+			column_index->type = BTREE;
+			column_index->index_pointer.btree_index = (BTreeIndex*) malloc(sizeof(BTreeIndex));
+		}
+	}
+	
 	return 0;
 }
 
@@ -224,10 +208,7 @@ int persist_db_catalog(Db* db) {
 
 int persist_tbl_catalog(Table* tbl) {
 	char tbl_catalog_path[MAX_PATH_NAME_SIZE] = "";
-	strcat(tbl_catalog_path, tbl->base_directory);
-	strcat(tbl_catalog_path, "/");
-	strcat(tbl_catalog_path, tbl->name);
-	strcat(tbl_catalog_path, ".tbl");
+	get_catalog_path_from_table(tbl_catalog_path, tbl);
 
 	int rflag = -1;
 	int fd = open(tbl_catalog_path, O_RDWR | O_CREAT, (mode_t)0600);
@@ -253,10 +234,13 @@ int persist_tbl_catalog(Table* tbl) {
 	PersistedTableCatalog* tbl_catalog = (PersistedTableCatalog*) mmap(0, sizeof(PersistedTableCatalog), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 	close(fd);
 
+	printf("persisiting columns capacity %zu\n", tbl->columns_capacity);
 	tbl_catalog->columns_capacity = tbl->columns_capacity;
 	tbl_catalog->col_count = tbl->col_count;
 	tbl_catalog->table_length = tbl->table_length;
 	tbl_catalog->table_capacity = tbl->table_capacity;
+	tbl_catalog->clustered_index_id = tbl->clustered_index_id;
+	tbl_catalog->has_clustered_index = tbl->has_clustered_index;
 	strncpy(tbl_catalog->name, tbl->name, MAX_SIZE_NAME);
     strncpy(tbl_catalog->base_directory, tbl->base_directory, MAX_SIZE_NAME);
 	char* ptr_to_write = tbl_catalog->column_names;
@@ -275,6 +259,39 @@ int persist_tbl_catalog(Table* tbl) {
         return -1;
     }
     rflag = munmap(tbl_catalog, sizeof(PersistedTableCatalog));
+    if(rflag == -1)
+    {
+        return -1;
+    }
+
+	return 0;
+}
+
+int persist_col_catalog(Column* col) {
+	char catalog_path[MAX_PATH_NAME_SIZE] = "";
+	get_catalog_path_from_column(catalog_path, col);
+	printf("catalog_path[%s]\n", catalog_path);
+
+	PersistedColumnCatalog* col_catalog = (PersistedColumnCatalog*) mmap_to_write(catalog_path, sizeof(PersistedColumnCatalog));
+
+	strcpy(col_catalog->name, col->name);
+	col_catalog->is_clustered = col->is_clustered;
+	if (col->index != NULL) {
+		if (col->index->type == SORTED) {
+			strcpy(col_catalog->index_type, "SORTED");
+		} else {
+			strcpy(col_catalog->index_type, "BTREE");
+		}
+	} else {
+		col_catalog->index_type[0] = '\0';
+	}
+
+    int rflag = msync(col_catalog, sizeof(PersistedColumnCatalog), MS_SYNC);
+    if(rflag == -1)
+    {
+        return -1;
+    }
+    rflag = munmap(col_catalog, sizeof(PersistedColumnCatalog));
     if(rflag == -1)
     {
         return -1;

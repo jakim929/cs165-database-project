@@ -1,7 +1,6 @@
 #include "cs165_api.h"
 #include "utils.h"
 
-
 void mergesort(int size, int* arr, int* result, int* posn_vec, int* posn_vec_result) {
     int midpoint = (size) / 2;
     if (size == 1) {
