@@ -156,6 +156,19 @@ int setup_server() {
     size_t len;
     struct sockaddr_un local;
 
+    size_t size = 300;
+    int* arr = (int*) malloc(sizeof(int) * size);
+    int* positions = (int*) malloc(sizeof(int) * size);
+
+    for (size_t i = 0; i < size; i+=2) {
+        arr[i] = i;
+        arr[i + 1] = i + 1;
+        positions[i] = i;
+        positions[i + 1] = i + 1;
+    }
+
+    construct_btree(arr, positions, size);
+
     log_info("Attempting to setup server...\n");
 
     if ((server_socket = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {

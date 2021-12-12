@@ -70,6 +70,19 @@ typedef enum IndexType {
 
 struct Comparator;
 
+typedef enum BTreeNodeType {
+    INNER,
+    LEAF,
+} BTreeNodeType;
+
+typedef struct BTreeNode {
+    int* values;
+    void** pointers;
+    size_t pointers_count;
+    int min;
+    BTreeNodeType type;
+} BTreeNode;
+
 typedef struct SortedIndex {
     char position_path[MAX_PATH_NAME_SIZE];
     char data_path[MAX_PATH_NAME_SIZE];
@@ -78,6 +91,9 @@ typedef struct SortedIndex {
 } SortedIndex;
 
 typedef struct BTreeIndex {
+    BTreeNode* root_node;
+    char position_path[MAX_PATH_NAME_SIZE];
+    char data_path[MAX_PATH_NAME_SIZE];
     int* positions;
     int* data;
 } BTreeIndex;

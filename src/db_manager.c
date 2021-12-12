@@ -3,7 +3,6 @@
 #include <sys/mman.h>
 #include <stdio.h>
 #include <fcntl.h>
-
 #include <errno.h>
 
 #include "cs165_api.h"
@@ -118,6 +117,7 @@ Status create_db(const char* db_name) {
 	new_db->tables_size = INITIAL_TABLES_SIZE;
 	new_db->tables_capacity = INITIAL_TABLES_SIZE;
 	new_db->tables = (Table*) malloc(sizeof(Table) * INITIAL_TABLES_SIZE);
+	new_db->base_directory[0] = '\0';
 	strcat(new_db->base_directory, BASE_CATALOG_PATH);
 	strcat(new_db->base_directory, "/");
 	strcat(new_db->base_directory, db_name);
@@ -139,9 +139,9 @@ void load_into_column(Column* column, int* buffer, size_t size) {
 	if (column->index != NULL) {
 		if (column->index->type == SORTED) {
 			memcpy(column->index->index_pointer.sorted_index->data, buffer, size * sizeof(int));
-				for (size_t i = 0; i < size; i++) {
-					column->index->index_pointer.sorted_index->positions[i] = i;
-				}
+			for (size_t i = 0; i < size; i++) {
+				column->index->index_pointer.sorted_index->positions[i] = i;
+			}
 			if (!column->is_clustered) {
 				int* result = (int*) malloc(sizeof(int) * size);
 				int* posn_vec_result = (int*) malloc(sizeof(int) * size);
@@ -157,6 +157,34 @@ void load_into_column(Column* column, int* buffer, size_t size) {
 				free(result);
 				free(posn_vec_result);
 			}
+		} else if (column->index->type == BTREE) {
+			memcpy(column->index->index_pointer.btree_index->data, buffer, size * sizeof(int));
+			for (size_t i = 0; i < size; i++) {
+				column->index->index_pointer.btree_index->positions[i] = i;
+			}
+			if (!column->is_clustered) {
+				int* result = (int*) malloc(sizeof(int) * size);
+				int* posn_vec_result = (int*) malloc(sizeof(int) * size);
+				printf("hello! creating unclustered btree index for %s\n", column->name);
+				mergesort(
+					size,
+					column->index->index_pointer.btree_index->data,
+					result,
+					column->index->index_pointer.btree_index->positions,
+					posn_vec_result
+				);
+				printf("%d rand\n", column->index->index_pointer.btree_index->positions[200]);
+				free(result);
+				free(posn_vec_result);
+			}
+			printf("for column: %s\n", column->name);
+			print_arr(column->index->index_pointer.btree_index->positions, size);
+			column->index->index_pointer.btree_index->root_node = construct_btree(
+				column->index->index_pointer.btree_index->data,
+				column->index->index_pointer.btree_index->positions,
+				size
+			);
+			printf("finished creating btree after load\n");
 		}
 	}
 } 

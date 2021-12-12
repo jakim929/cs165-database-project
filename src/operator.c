@@ -242,15 +242,18 @@ Result* select_from_column(GeneralizedColumn* gcolumn, NullableInt* range_start,
     if (gcolumn->column_type == COLUMN) {
         if (gcolumn->column_pointer.column->index != NULL) {
             ColumnIndex* index = gcolumn->column_pointer.column->index;
+            result->data_type = INT;
+            result->payload = malloc(sizeof(int) * data_size);
             if (index->type == SORTED) {
-                result->data_type = INT;
-                result->payload = malloc(sizeof(int) * data_size);
                 SortedIndex* sorted_index =index->index_pointer.sorted_index;
                 int start_pos, end_pos;
                 get_range_of(&start_pos, &end_pos, sorted_index->data, data_size, range_start, range_end);
                 memcpy(result->payload, sorted_index->positions + start_pos, (end_pos - start_pos + 1) * sizeof(int));
+                select_status->code = OK;
+                return result;
+            } else if (index->type == BTREE) {
+                
             }
-
         }
     }
 
@@ -542,7 +545,6 @@ char* execute_print_operator(PrintOperator* print_operator) {
     }
     return buffer;
 }
-
 
 // char* execute_batched_select_operator(ClientContext* client_context, BatchedOperator* batched_operator) {
 //     Column* column = batched_operator->dbos[0]->operator_fields.select_operator.gcolumn->column_pointer.column;
