@@ -16,6 +16,7 @@
 // In this class, there will always be only one active database at a time
 Db *current_db;
 
+int freed_nodes = 0;
 int resize_column_capacity(Column* column, size_t new_capacity);
 
 void insert_row(Table* table, int* values, Status *ret_status) {
@@ -177,8 +178,6 @@ void load_into_column(Column* column, int* buffer, size_t size) {
 				free(result);
 				free(posn_vec_result);
 			}
-			printf("for column: %s\n", column->name);
-			print_arr(column->index->index_pointer.btree_index->positions, size);
 			column->index->index_pointer.btree_index->root_node = construct_btree(
 				column->index->index_pointer.btree_index->data,
 				column->index->index_pointer.btree_index->positions,
@@ -208,6 +207,19 @@ void load_into_table(Table* table, int** cols, int int_size) {
 	table->table_length = size;
 }
 
+int free_btree(BTreeNode* node) {
+	free(node->values);
+	if (node->type == INNER) {
+		for(size_t i = 0; i < node->pointers_count; i++) {
+			free_btree((BTreeNode*) node->pointers[i]);
+		}
+	}
+	free(node->pointers);
+	free(node);
+	freed_nodes++;
+	return 0;
+}
+
 int free_column_index(ColumnIndex* index, size_t capacity) {
 	int rflag = 0;
 	if (index->type == SORTED) {
@@ -231,9 +243,30 @@ int free_column_index(ColumnIndex* index, size_t capacity) {
 		{
 			return -1;
 		}
-
-	} else {
-
+	} else if (index->type == BTREE) {
+		freed_nodes = 0;
+		free_btree(index->index_pointer.btree_index->root_node);
+		printf("FREED NODES: %d \n", freed_nodes);
+		rflag = msync(index->index_pointer.btree_index->data, capacity * sizeof(int), MS_SYNC);
+		if(rflag == -1)
+		{
+			return -1;
+		}
+		rflag = munmap(index->index_pointer.btree_index->data, capacity * sizeof(int));
+		if(rflag == -1)
+		{
+			return -1;
+		}
+		rflag = msync(index->index_pointer.btree_index->positions, capacity * sizeof(int), MS_SYNC);
+		if(rflag == -1)
+		{
+			return -1;
+		}
+		rflag = munmap(index->index_pointer.btree_index->positions, capacity * sizeof(int));
+		if(rflag == -1)
+		{
+			return -1;
+		}
 	}
 	return 0;
 }

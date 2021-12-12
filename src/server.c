@@ -30,6 +30,7 @@
 #include "message.h"
 #include "utils.h"
 #include "client_context.h"
+#include "column_index.h"
 #include "catalog.h"
 #include "thread_pool.h"
 

@@ -12,6 +12,8 @@
 #include "mmap_helper.h"
 #include "column_index.h"
 
+int total_nodes = 0;
+
 size_t get_ceil(size_t val, size_t div) {
 	return (val / div) + ((val % div) > 0 ? 1 : 0);
 }
@@ -97,14 +99,13 @@ void dedup(int* deduped_data, int* deduped_positions, size_t* deduped_data_size,
 
 void construct_leaf_nodes(BTreeNode*** leaf_nodes, size_t* leaf_node_count, int* deduped_data, int* sorted_data, int* deduped_data_positions, size_t deduped_data_count, int fanout) {
 	printf("construct_leaf_nodes\n");
-	print_arr(deduped_data, deduped_data_count);
 	size_t pagesize = 1;
 	size_t page_count = get_ceil(deduped_data_count, pagesize);
 	*leaf_node_count = get_ceil(page_count, fanout);
 	*leaf_nodes = (BTreeNode**) malloc(sizeof(BTreeNode*) * *leaf_node_count);
 	for(size_t i = 0; i < *leaf_node_count; i++) {
-		size_t pointers_count = i >= (page_count / fanout) ? (page_count % fanout) : fanout;
-
+		size_t pointers_count = i >= (page_count / fanout) ? (page_count % fanout) : (size_t) fanout;
+		total_nodes++;
 		(*leaf_nodes)[i] = (BTreeNode*) malloc(sizeof(BTreeNode));
 		(*leaf_nodes)[i]->pointers = (void**) malloc(sizeof(void*) * pointers_count);
 		(*leaf_nodes)[i]->pointers_count = pointers_count;
@@ -131,14 +132,14 @@ void construct_inner_nodes(
 	*inner_node_count = get_ceil(node_count, fanout);
 	*inner_nodes = (BTreeNode**) malloc(sizeof(BTreeNode*) * *inner_node_count);
 	for(size_t i = 0; i < *inner_node_count; i++) {
-		size_t pointers_count = i >= (node_count / fanout) ? (node_count % fanout) : fanout;
+		size_t pointers_count = i >= (node_count / fanout) ? (node_count % fanout) : (size_t) fanout;
 		if (pointers_count == 1) {
 			// printf("going for the last one %zu / %zu\n", i * fanout + pointers_count, node_count);
 			(*inner_nodes)[i] = nodes[i * fanout + pointers_count - 1];
 			// printf("nodes %d\n", (*inner_nodes)[i]->values[0]);
 		} else {
 			// printf("going for regular  one\n");
-
+			total_nodes++;
 			(*inner_nodes)[i] = (BTreeNode*) malloc(sizeof(BTreeNode));
 			(*inner_nodes)[i]->pointers_count = pointers_count;
 			(*inner_nodes)[i]->pointers = (void**) malloc(sizeof(void*) * pointers_count);
@@ -155,6 +156,7 @@ void construct_inner_nodes(
 }
 
 BTreeNode* construct_btree(int* sorted_data, int* sorted_positions, size_t size) {
+	total_nodes = 0;
 	int fanout = 3;
 	int* deduped_data = (int*) malloc(sizeof(int*) * size);
 	int* deduped_positions = (int*) malloc(sizeof(int*) * size);
@@ -166,57 +168,56 @@ BTreeNode* construct_btree(int* sorted_data, int* sorted_positions, size_t size)
 
 	size_t node_count;
 	BTreeNode** nodes;
+
 	construct_leaf_nodes(&nodes, &node_count, deduped_data, sorted_data, deduped_positions, deduped_data_size, fanout);
-	// printf("leaf construction result\n");
-	// printf("node_count: %zu\n", node_count);
-	// print_arr(nodes[0].values, fanout - 1);
-	// print_arr(nodes[1].values, fanout - 1);
-	// printf("%d, %d, %d pointed\n", *(((int*) nodes[1].pointers[0]) + 1), *((int*) nodes[1].pointers[1]), *((int*) nodes[1].pointers[2]));
 
-
-	printf("level 0\n");
-	for (size_t i = 0; i < node_count; i++) {
-		for (int j = 0; j < nodes[i]->pointers_count; j++) {
-			printf("%d,", nodes[i]->values[j]);
-		}
-		printf(" / ");
-	}
-	printf("\n");
+	// printf("level 0\n");
+	// for (size_t i = 0; i < node_count; i++) {
+	// 	for (int j = 0; j < nodes[i]->pointers_count; j++) {
+	// 		printf("%d,", nodes[i]->values[j]);
+	// 	}
+	// 	printf(" / ");
+	// }
+	// printf("\n");
 	int level = 1;
-
+	BTreeNode** temp_nodes;
 	do {
 		size_t temp_node_count;
-		BTreeNode** temp_nodes;
 		construct_inner_nodes(&temp_nodes, &temp_node_count, nodes, node_count, fanout);
+		free(nodes);
 		node_count = temp_node_count;
 		nodes = temp_nodes;
-		printf("level %d\n", level);
-		for (size_t i = 0; i < node_count; i++) {
-			for (size_t j = 0; j < nodes[i]->pointers_count; j++) {
-				printf("%d,", nodes[i]->values[j]);
-			}
-			printf(" / ");
-		}
-		printf("\n");
+		// printf("level %d\n", level);
+		// for (size_t i = 0; i < node_count; i++) {
+		// 	for (size_t j = 0; j < nodes[i]->pointers_count; j++) {
+		// 		printf("%d,", nodes[i]->values[j]);
+		// 	}
+		// 	printf(" / ");
+		// }
+		// printf("\n");
 		
 		// node_count != 0 && printf("node_count %zu/%zu\n", temp_node_count, node_count);
 		level++;
 	} while(node_count != 1);
-	printf("finished %d\n", nodes[0]->values[0]);
+
+	BTreeNode* root_node = temp_nodes[0];
+	free(temp_nodes);
+	printf("finished %d\n", root_node->values[0]);
 
 	// Testing a search through
 	int needle = 716;
-	BTreeNode* node = nodes[0];
-
-	int* res = search_btree_index(node, needle);
+	int* res = search_btree_index(root_node, needle);
 	if (res == NULL ) {
-		printf(" key not found !\n");
+		printf("key not found!\n");
 	} else {
 		printf("result! %d\n", *res);
 	}
 
+	free(deduped_data);
+	free(deduped_positions);
 
-	return nodes[0];
+	printf("TOTAL NODES: %d\n", total_nodes);
+	return root_node;
 }
 
 int find_pointer_in_node(BTreeNode* node, int needle) {

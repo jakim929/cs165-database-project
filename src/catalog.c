@@ -140,8 +140,20 @@ int unpersist_col(Column* col, Table* table, char* column_name, size_t column_si
 			);
 		} else if (strncmp(col_catalog->index_type, "BTREE", 5) == 0) {
 			column_index->type = BTREE;
-			column_index->index_pointer.btree_index = (BTreeIndex*) malloc(sizeof(BTreeIndex));
+			column_index->index_pointer.btree_index = create_btree_index(
+				table->base_directory,
+				table->name,
+				col->name,
+				col->capacity
+			);
+
+			column_index->index_pointer.btree_index->root_node = construct_btree(
+				column_index->index_pointer.btree_index->data,
+				column_index->index_pointer.btree_index->positions,
+				col->size
+			);
 		}
+		col->index = column_index;
 	}
 	
 	return 0;
