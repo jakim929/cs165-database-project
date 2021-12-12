@@ -244,16 +244,21 @@ Result* select_from_column(GeneralizedColumn* gcolumn, NullableInt* range_start,
             ColumnIndex* index = gcolumn->column_pointer.column->index;
             result->data_type = INT;
             result->payload = malloc(sizeof(int) * data_size);
+            int start_pos, end_pos;
             if (index->type == SORTED) {
-                SortedIndex* sorted_index =index->index_pointer.sorted_index;
-                int start_pos, end_pos;
+                printf("using SORTED_INDEX for SELECT\n");
+                SortedIndex* sorted_index = index->index_pointer.sorted_index;
                 get_range_of(&start_pos, &end_pos, sorted_index->data, data_size, range_start, range_end);
                 memcpy(result->payload, sorted_index->positions + start_pos, (end_pos - start_pos + 1) * sizeof(int));
-                select_status->code = OK;
-                return result;
             } else if (index->type == BTREE) {
-                
+                printf("using BTREE_INDEX for SELECT\n");
+                BTreeIndex* btree_index = index->index_pointer.btree_index;
+                btree_get_range_of(&start_pos, &end_pos, btree_index, data_size, range_start, range_end);
+                memcpy(result->payload, btree_index->positions + start_pos, (end_pos - start_pos + 1) * sizeof(int));
             }
+            result->num_tuples = end_pos - start_pos + 1;
+            select_status->code = OK;
+            return result;
         }
     }
 

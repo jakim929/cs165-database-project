@@ -251,6 +251,23 @@ int* search_btree_index(BTreeNode* root_node, int needle) {
 	return search_leaf_node(node, needle);
 }
 
+int search_btree_index_position(BTreeIndex* btree_index, int needle) {
+	int* needle_pointer = search_btree_index(btree_index->root_node, needle);
+	ptrdiff_t diff = needle_pointer - btree_index->data;
+	return *(btree_index->positions + diff);
+}
+
+void btree_get_range_of(int* start, int* end, BTreeIndex* btree_index, size_t size, NullableInt* range_start, NullableInt* range_end) {
+    *start = 0;
+    *end = size - 1;
+    if (!range_start->is_null) {
+        *start = search_btree_index_position(btree_index, range_start->value);
+    }
+    if (!range_end->is_null) {
+        *end = search_btree_index_position(btree_index, range_end->value);
+    }
+}
+
 void resize_column_index(ColumnIndex* index, size_t prev_capacity, size_t new_capacity) {
 	printf("STARTING resize_column_index to %zu", new_capacity);
 	if (index->type == SORTED) {
