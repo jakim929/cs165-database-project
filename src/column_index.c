@@ -75,6 +75,7 @@ BTreeIndex* create_btree_index(char* base_directory, char* table_name, char* col
 
 	btree_index->data = mmap_to_write(btree_index->data_path, capacity * sizeof(int));
 	btree_index->positions = mmap_to_write(btree_index->position_path, capacity * sizeof(int));
+	btree_index->size = 0;
 
 	return btree_index;
 }
@@ -99,8 +100,7 @@ void dedup(int* deduped_data, int* deduped_positions, size_t* deduped_data_size,
 
 void construct_leaf_nodes(BTreeNode*** leaf_nodes, size_t* leaf_node_count, int* deduped_data, int* sorted_data, int* deduped_data_positions, size_t deduped_data_count, int fanout) {
 	printf("construct_leaf_nodes\n");
-	size_t pagesize = 1;
-	size_t page_count = get_ceil(deduped_data_count, pagesize);
+	size_t page_count = get_ceil(deduped_data_count, BTREE_PAGESIZE);
 	*leaf_node_count = get_ceil(page_count, fanout);
 	*leaf_nodes = (BTreeNode**) malloc(sizeof(BTreeNode*) * *leaf_node_count);
 	for(size_t i = 0; i < *leaf_node_count; i++) {
@@ -115,8 +115,8 @@ void construct_leaf_nodes(BTreeNode*** leaf_nodes, size_t* leaf_node_count, int*
 		for(size_t j = 0; j < (size_t) pointers_count; j++) {
 			size_t original_node_id = i * fanout + j;
 			if (original_node_id < page_count) {
-				(*leaf_nodes)[i]->values[j] = deduped_data[original_node_id * pagesize];
-				(*leaf_nodes)[i]->pointers[j] = (void*) &sorted_data[deduped_data_positions[original_node_id * pagesize]];
+				(*leaf_nodes)[i]->values[j] = deduped_data[original_node_id * BTREE_PAGESIZE];
+				(*leaf_nodes)[i]->pointers[j] = (void*) &sorted_data[deduped_data_positions[original_node_id * BTREE_PAGESIZE]];
 			}		
 		}
  	}
@@ -173,7 +173,7 @@ BTreeNode* construct_btree(int* sorted_data, int* sorted_positions, size_t size)
 
 	// printf("level 0\n");
 	// for (size_t i = 0; i < node_count; i++) {
-	// 	for (int j = 0; j < nodes[i]->pointers_count; j++) {
+	// 	for (size_t j = 0; j < nodes[i]->pointers_count; j++) {
 	// 		printf("%d,", nodes[i]->values[j]);
 	// 	}
 	// 	printf(" / ");
@@ -220,7 +220,7 @@ BTreeNode* construct_btree(int* sorted_data, int* sorted_positions, size_t size)
 	return root_node;
 }
 
-int find_pointer_in_node(BTreeNode* node, int needle) {
+int find_pointer_index_in_node(BTreeNode* node, int needle) {
 	for(int i = node->pointers_count - 1; i >= 0; i--) {
 		if (needle >= node->values[i]) {
 			return i;
@@ -229,9 +229,14 @@ int find_pointer_in_node(BTreeNode* node, int needle) {
 	return 0;
 }
 
-int* search_leaf_node(BTreeNode* node, int needle) {
-	int pointer_index = find_pointer_in_node(node, needle);
+int* search_leaf_node_approx(BTreeNode* node, int needle) {
+	int pointer_index = find_pointer_index_in_node(node, needle);
 	int* pointer = (int*) node->pointers[pointer_index];
+	return pointer;
+}
+
+int* search_leaf_node(BTreeNode* node, int needle) {
+	int* pointer = search_leaf_node_approx(node, needle);
 	if (pointer == NULL || *pointer != needle) {
 		return NULL;
 	}
@@ -239,7 +244,7 @@ int* search_leaf_node(BTreeNode* node, int needle) {
 }
 
 BTreeNode* search_inner_node(BTreeNode* node, int needle) {
-	int pointer_index = find_pointer_in_node(node, needle);
+	int pointer_index = find_pointer_index_in_node(node, needle);
 	return (BTreeNode*) node->pointers[pointer_index];
 }
 
@@ -251,8 +256,61 @@ int* search_btree_index(BTreeNode* root_node, int needle) {
 	return search_leaf_node(node, needle);
 }
 
+int* search_btree_index_approx(BTreeNode* root_node, int needle) {
+	BTreeNode* node = root_node;
+	while (node->type != LEAF) {
+		node = search_inner_node(node, needle);
+	}
+	return search_leaf_node_approx(node, needle);
+}
+
+int get_index_from_btree(BTreeIndex* btree_index, int* data_pointer) {
+	ptrdiff_t diff = data_pointer - btree_index->data;
+	return (int) diff;
+}
+
+int search_btree_index_ge(BTreeIndex* btree_index, int needle) {
+	int* pointer = search_btree_index_approx(btree_index->root_node, needle);
+	ptrdiff_t diff = pointer - btree_index->data;
+	size_t size_left = btree_index->size - (size_t) diff;
+	for (size_t i = 0; i < size_left; i++) {
+		if (*(pointer + i) >= needle) {
+			return get_index_from_btree(btree_index, pointer + i);
+		}
+	}
+	return get_index_from_btree(btree_index, pointer + size_left);
+}
+
+// int* search_btree_pointer_lt(BTreeIndex* btree_index, int needle) {
+// 	int* pointer = search_btree_index_approx(btree_index->root_node, needle);
+// 	ptrdiff_t diff = pointer - btree_index->data;
+// 	size_t size_left = btree_index->size - (size_t) diff;
+// 	for (size_t i = 1; i < size_left; i++) {
+// 		if (*(pointer + i) >= needle) {
+// 			return pointer + i;
+// 		}
+// 	}
+// 	return pointer + size_left;
+// }
+
+int* search_btree_pointer_eq(BTreeIndex* btree_index, int needle) {
+	int* pointer = search_btree_index_approx(btree_index->root_node, needle);
+	ptrdiff_t diff = pointer - btree_index->data;
+	size_t size_left = btree_index->size - (size_t) diff;
+	for (size_t i = 0; i < size_left; i++) {
+		if (*(pointer + i) == needle) {
+			return pointer + i;
+		} else if (*(pointer + i) > needle) {
+			return NULL;
+		}
+	}
+	return NULL;
+}
+
+
 int search_btree_index_position(BTreeIndex* btree_index, int needle) {
 	int* needle_pointer = search_btree_index(btree_index->root_node, needle);
+	printf("needle_pointer %p\n", needle_pointer);
 	ptrdiff_t diff = needle_pointer - btree_index->data;
 	return *(btree_index->positions + diff);
 }
@@ -261,10 +319,10 @@ void btree_get_range_of(int* start, int* end, BTreeIndex* btree_index, size_t si
     *start = 0;
     *end = size - 1;
     if (!range_start->is_null) {
-        *start = search_btree_index_position(btree_index, range_start->value);
+        *start = search_btree_index_ge(btree_index, range_start->value);
     }
     if (!range_end->is_null) {
-        *end = search_btree_index_position(btree_index, range_end->value);
+        *end = search_btree_index_ge(btree_index, range_end->value) - 1;
     }
 }
 

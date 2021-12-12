@@ -43,6 +43,8 @@ SOFTWARE.
 #define INITIAL_PRINT_OPERATOR_COLUMNS_CAPACITY 32
 #define INITIAL_PRINT_OPERATOR_BUFFER_SIZE 8192
 
+#define BTREE_PAGESIZE 3
+
 typedef struct BatchedOperator BatchedOperator;
 typedef struct LoadOperator LoadOperator;
 typedef struct Table Table;
@@ -96,6 +98,7 @@ typedef struct BTreeIndex {
     char data_path[MAX_PATH_NAME_SIZE];
     int* positions;
     int* data;
+    size_t size;
 } BTreeIndex;
 
 typedef union IndexPointer {

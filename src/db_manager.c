@@ -183,6 +183,7 @@ void load_into_column(Column* column, int* buffer, size_t size) {
 				column->index->index_pointer.btree_index->positions,
 				size
 			);
+			column->index->index_pointer.btree_index->size = size;
 			printf("finished creating btree after load\n");
 		}
 	}

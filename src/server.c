@@ -163,9 +163,9 @@ int setup_server() {
 
     for (size_t i = 0; i < size; i+=2) {
         arr[i] = i;
-        arr[i + 1] = i + 1;
+        arr[i + 1] = i;
         positions[i] = i;
-        positions[i + 1] = i + 1;
+        positions[i + 1] = i;
     }
 
     construct_btree(arr, positions, size);

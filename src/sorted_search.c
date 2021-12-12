@@ -91,6 +91,6 @@ void get_range_of(int* start, int* end, int* data, int size, NullableInt* range_
         *start = range_begin_of(data, size, range_start->value);
     }
     if (!range_end->is_null) {
-        *end = range_end_of(data, size, range_end->value);
+        *end = range_begin_of(data, size, range_end->value) - 1;
     }
 }

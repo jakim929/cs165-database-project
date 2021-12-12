@@ -8,6 +8,7 @@
 #include "cs165_api.h"
 #include "utils.h"
 #include "client_context.h"
+#include "column_index.h"
 #include "batched_operator.h"
 #include "thread_pool.h"
 #include "sorted_search.h"
@@ -339,7 +340,11 @@ Result* execute_average_operator(AverageOperator* average_operator) {
     result->data_type = FLOAT;
     result->num_tuples = 1;
     result->payload = malloc(sizeof(float));
-    ((float*) result->payload)[0] = (float) ((double) sum / ((double) size));
+    if (size == 0) {
+        ((float*) result->payload)[0] = 0.00;
+    } else {
+        ((float*) result->payload)[0] = (float) ((double) sum / ((double) size));
+    }
     return result;
 }
 

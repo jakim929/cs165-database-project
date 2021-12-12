@@ -152,6 +152,7 @@ int unpersist_col(Column* col, Table* table, char* column_name, size_t column_si
 				column_index->index_pointer.btree_index->positions,
 				col->size
 			);
+			column_index->index_pointer.btree_index->size = col->size;
 		}
 		col->index = column_index;
 	}
