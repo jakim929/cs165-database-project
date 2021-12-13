@@ -4,6 +4,7 @@
 #include <string.h>
 #include <time.h>
 #include <limits.h>
+#include <math.h>
 
 #include "cs165_api.h"
 #include "utils.h"
@@ -516,7 +517,7 @@ int print_gcolumn_data(char* dest, GeneralizedColumn* gcolumn, size_t index) {
             return sprintf(dest, "%d", val);
         } else if (gcolumn->column_pointer.result->data_type == FLOAT) {
             float val = ((float*) gcolumn->column_pointer.result->payload)[index];
-            return sprintf(dest, "%.2f", val);
+            return sprintf(dest, "%.2f", trunc(round(round(val * 100.0 - 0.1) + 0.1)) / 100.0);
         } else if (gcolumn->column_pointer.result->data_type == LONG) {
             long val = ((long*) gcolumn->column_pointer.result->payload)[index];
             return sprintf(dest, "%ld", val);

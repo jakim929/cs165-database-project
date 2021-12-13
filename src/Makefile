@@ -60,7 +60,7 @@ client: client.o utils.o
 	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 server: server.o parse.o utils.o db_manager.o client_context.o catalog.o operator.o batched_operator.o thread_pool.o sort.o table.o column.o column_index.o mmap_helper.o sorted_search.o
-	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS) -lm
 
 clean:
 	rm -f client server *.o *~ *.bak core *.core $(SOCK_PATH)
