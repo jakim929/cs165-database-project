@@ -3,6 +3,7 @@
 #include <sys/mman.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <time.h>
 
 #include <errno.h>
 
@@ -117,7 +118,10 @@ void construct_leaf_nodes(BTreeNode*** leaf_nodes, size_t* leaf_node_count, int*
 			if (original_node_id < page_count) {
 				(*leaf_nodes)[i]->values[j] = deduped_data[original_node_id * BTREE_PAGESIZE];
 				(*leaf_nodes)[i]->pointers[j] = (void*) &sorted_data[deduped_data_positions[original_node_id * BTREE_PAGESIZE]];
-			}		
+				if ((*leaf_nodes)[i]->values[j] != (*(int*) ((*leaf_nodes)[i]->pointers[j]))) {
+					// printf("WRONG!: %d, %d\n", (*leaf_nodes)[i]->values[j], (*(int*) ((*leaf_nodes)[i]->pointers[j])));
+				}
+			}
 		}
  	}
 }
@@ -155,16 +159,22 @@ void construct_inner_nodes(
  	}
 }
 
-BTreeNode* construct_btree(int* sorted_data, int* sorted_positions, size_t size) {
+BTreeNode* construct_btree(int* sorted_data, int* sorted_positions_on_original, size_t size) {
 	total_nodes = 0;
 	int fanout = 3;
 	int* deduped_data = (int*) malloc(sizeof(int*) * size);
 	int* deduped_positions = (int*) malloc(sizeof(int*) * size);
 	size_t deduped_data_size = 0;
+
+	int* sorted_positions = (int*) malloc(sizeof(int*) * size);
+	for (size_t i = 0; i < size; i++) {
+		sorted_positions[i] = i;
+	}
 	
 	dedup(deduped_data, deduped_positions, &deduped_data_size, sorted_data, sorted_positions, size);
 	printf("dedup result\n");
 	printf("deduped_data_size: %zu\n", deduped_data_size);
+
 
 	size_t node_count;
 	BTreeNode** nodes;
@@ -258,10 +268,12 @@ int* search_btree_index(BTreeNode* root_node, int needle) {
 
 int* search_btree_index_approx(BTreeNode* root_node, int needle) {
 	BTreeNode* node = root_node;
+	
 	while (node->type != LEAF) {
 		node = search_inner_node(node, needle);
 	}
-	return search_leaf_node_approx(node, needle);
+	int* result = search_leaf_node_approx(node, needle);
+	return result;
 }
 
 int get_index_from_btree(BTreeIndex* btree_index, int* data_pointer) {
@@ -273,11 +285,24 @@ int search_btree_index_ge(BTreeIndex* btree_index, int needle) {
 	int* pointer = search_btree_index_approx(btree_index->root_node, needle);
 	ptrdiff_t diff = pointer - btree_index->data;
 	size_t size_left = btree_index->size - (size_t) diff;
+
+    clock_t start, end;
+    double cpu_time_used;
+    start = clock();
+
+	int total_scanned = 0;
 	for (size_t i = 0; i < size_left; i++) {
+		total_scanned++;
 		if (*(pointer + i) >= needle) {
 			return get_index_from_btree(btree_index, pointer + i);
 		}
 	}
+
+	end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+
+	printf("btree_search post scan took %fms for [%d/%zu] at %d for needle %d \n", cpu_time_used, total_scanned, size_left, *(pointer), needle);
+
 	return get_index_from_btree(btree_index, pointer + size_left);
 }
 

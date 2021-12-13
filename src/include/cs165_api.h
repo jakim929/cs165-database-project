@@ -43,7 +43,7 @@ SOFTWARE.
 #define INITIAL_PRINT_OPERATOR_COLUMNS_CAPACITY 32
 #define INITIAL_PRINT_OPERATOR_BUFFER_SIZE 8192
 
-#define BTREE_PAGESIZE 4096
+#define BTREE_PAGESIZE 128
 
 typedef struct BatchedOperator BatchedOperator;
 typedef struct LoadOperator LoadOperator;
