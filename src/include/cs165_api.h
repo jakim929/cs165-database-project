@@ -70,6 +70,11 @@ typedef enum IndexType {
     SORTED,
 } IndexType;
 
+typedef enum JoinType {
+    HASH,
+    NESTED_LOOP,
+} JoinType;
+
 struct Comparator;
 
 typedef enum BTreeNodeType {
@@ -306,6 +311,7 @@ typedef enum OperatorType {
     BATCH_EXECUTE,
     START_LOAD,
     END_LOAD,
+    JOIN,
 } OperatorType;
 
 
@@ -408,6 +414,14 @@ typedef struct PrintOperator {
     int generalized_columns_count;
 } PrintOperator;
 
+typedef struct JoinOperator {
+    Result* posn_vec1;
+    Result* val_vec1;
+    Result* posn_vec2;
+    Result* val_vec2;
+    JoinType type;
+} JoinOperator;
+
 /*
  * union type holding the fields of any operator
  */
@@ -426,6 +440,7 @@ typedef union OperatorFields {
     MinOperator min_operator;
     AddOperator add_operator;
     SubOperator sub_operator;
+    JoinOperator join_operator;
 } OperatorFields;
 
 /*

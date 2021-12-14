@@ -335,7 +335,6 @@ int* search_btree_pointer_eq(BTreeIndex* btree_index, int needle) {
 
 int search_btree_index_position(BTreeIndex* btree_index, int needle) {
 	int* needle_pointer = search_btree_index(btree_index->root_node, needle);
-	printf("needle_pointer %p\n", needle_pointer);
 	ptrdiff_t diff = needle_pointer - btree_index->data;
 	return *(btree_index->positions + diff);
 }

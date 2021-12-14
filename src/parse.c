@@ -40,6 +40,12 @@ char* next_line(char** tokenizer, message_status* status) {
     return token;
 }
 
+bool is_gcolumn_posn_vec(GeneralizedColumn* gcolumn) {
+    return gcolumn != NULL &&
+        gcolumn->column_type == RESULT &&
+        gcolumn->column_pointer.result->data_type == INT;
+}
+
 DbOperator* parse_create_idx(char* create_arguments) {
     message_status status = OK_DONE;
     char** create_arguments_index = &create_arguments;
@@ -391,6 +397,7 @@ DbOperator* parse_fetch(char* query_command, ClientContext* context, message* se
         // parse table input
         char* column_name = next_token(command_index, &send_message->status);
         char* posn_vec_name = next_token(command_index, &send_message->status);
+        printf("%s \\ %s\n", column_name, posn_vec_name);
         int last_char = strlen(posn_vec_name) - 1;
         if (last_char < 0 || posn_vec_name[last_char] != ')') {
             return NULL;
@@ -704,6 +711,70 @@ DbOperator* parse_start_load(char* query_command, message* send_message) {
     }
 }
 
+DbOperator* parse_join(char* query_command, ClientContext* context, message* send_message) {
+    if (strncmp(query_command, "(", 1) == 0) {
+        query_command++;
+        char** command_index = &query_command;
+        char* val_vec1_name = next_token(command_index, &send_message->status);
+        char* posn_vec1_name = next_token(command_index, &send_message->status);
+        char* val_vec2_name = next_token(command_index, &send_message->status);
+        char* posn_vec2_name = next_token(command_index, &send_message->status);
+        char* join_type_name = next_token(command_index, &send_message->status);
+        
+        int last_char = strlen(join_type_name) - 1;
+        if (last_char < 0 || join_type_name[last_char] != ')') {
+            return NULL;
+        }
+        // replace final ')' with null-termination character.
+        join_type_name[last_char] = '\0';
+        if (send_message->status == INCORRECT_FORMAT) {
+            return NULL;
+        }
+
+        GeneralizedColumn* val_vec1 = lookup_gcolumn_by_handle(context, val_vec1_name);
+        GeneralizedColumn* val_vec2 = lookup_gcolumn_by_handle(context, val_vec2_name);
+
+        GeneralizedColumn* posn_vec1 = lookup_gcolumn_by_handle(context, posn_vec1_name);
+        GeneralizedColumn* posn_vec2 = lookup_gcolumn_by_handle(context, posn_vec2_name);
+        
+        if (
+            val_vec1 == NULL ||
+            val_vec2 == NULL ||
+            !is_gcolumn_posn_vec(posn_vec1) ||
+            !is_gcolumn_posn_vec(posn_vec2)
+        ) {
+            send_message->status = OBJECT_NOT_FOUND;
+            return NULL;
+        }
+
+        printf("hello!! join_type=%s\n ", join_type_name);
+
+        JoinType join_type;
+        if (strncmp(join_type_name, "hash", 4) == 0) {
+            join_type = HASH;
+        } else if(strncmp(join_type_name, "nested-loop", 11) == 0) {
+            printf("NESTED LOOP!\n");
+            join_type = NESTED_LOOP;
+        } else {
+            send_message->status = INCORRECT_FORMAT;
+            return NULL;
+        }
+
+        DbOperator* dbo = malloc(sizeof(DbOperator));
+        dbo->type = JOIN;
+        dbo->operator_fields.join_operator.val_vec1 = val_vec1->column_pointer.result;
+        dbo->operator_fields.join_operator.val_vec2 = val_vec2->column_pointer.result;
+        dbo->operator_fields.join_operator.posn_vec1 = posn_vec1->column_pointer.result;
+        dbo->operator_fields.join_operator.posn_vec2 = posn_vec2->column_pointer.result;
+        dbo->operator_fields.join_operator.type = join_type;
+    
+        return dbo;
+    } else {
+        send_message->status = UNKNOWN_COMMAND;
+        return NULL;
+    }
+}
+
 /**
  * parse_command takes as input the send_message from the client and then
  * parses it into the appropriate query. Stores into send_message the
@@ -800,6 +871,9 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         query_command += 8;
         dbo = malloc(sizeof(DbOperator));
         dbo->type = END_LOAD;
+    } else if (strncmp(query_command, "join", 4) == 0) {
+        query_command += 4;
+        dbo = parse_join(query_command, context, send_message);
     } else if (strncmp(query_command, "shutdown", 8) == 0) {
         query_command += 8;
         dbo = malloc(sizeof(DbOperator));

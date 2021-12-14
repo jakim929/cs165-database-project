@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include <stdio.h>
+#include <string.h>
 #include <inttypes.h>
 #include <string.h>
 #include <time.h>
@@ -7,12 +8,15 @@
 #include <math.h>
 
 #include "cs165_api.h"
+#include "message.h"
+#include "parse.h"
 #include "utils.h"
 #include "client_context.h"
 #include "column_index.h"
 #include "batched_operator.h"
 #include "thread_pool.h"
 #include "sorted_search.h"
+#include "hash_table.h"
 
 char* batch_execute(ClientContext* client_context, BatchedOperator* batched_operator);
 char* execute_load_operator(LoadOperator* load_operator);
@@ -24,6 +28,7 @@ Result* execute_min_operator(MinOperator* min_operator);
 Result* execute_max_operator(MaxOperator* max_operator);
 Result* execute_add_operator(AddOperator* add_operator);
 Result* execute_sub_operator(SubOperator* sub_operator);
+void execute_join_operator(Result** r1, Result** r2, JoinOperator* join_operator);
 
 /** execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).
@@ -64,6 +69,7 @@ char* execute_db_operator(DbOperator* query) {
     
     if(!query)
     {
+        printf("no query!\n");
         return "";
     }
 
@@ -139,6 +145,26 @@ char* execute_db_operator(DbOperator* query) {
                 return "";
             }
         }
+    } else if (query->type == JOIN) {
+        Result* r1;
+        Result* r2;
+
+        message_status status = OK_DONE;
+        char* query_handle_copy = (char*) malloc(sizeof(char) * (strlen(query->handle) + 1));
+        strcpy(query_handle_copy, query->handle);
+        printf("handle!! %s [%d]\n", query->handle, strlen(query->handle));
+        char** command_index = &(query_handle_copy);
+        char* r1_handle = next_token(command_index, &status);
+        char* r2_handle = next_token(command_index, &status);
+
+        if (status == INCORRECT_FORMAT) {
+            return "";
+        }
+
+        execute_join_operator(&r1, &r2, &query->operator_fields.join_operator);
+        add_result_to_client_context(query->context, r1, r1_handle);
+        add_result_to_client_context(query->context, r2, r2_handle);
+        return "";
     } else if (query->type == AVERAGE) {
         Result* average_result = execute_average_operator(&(query->operator_fields.average_operator));
         if (strlen(query->handle) != 0) {
@@ -441,6 +467,122 @@ Result* execute_sub_operator(SubOperator* sub_operator) {
     result->num_tuples = size;
     result->payload = (void*) sub_result;
     return result;
+}
+
+void get_from_hash_table(int** values, int* num_results) {
+    *values = (int*) malloc(*num_results * sizeof(int));
+}
+
+void execute_hash_join(
+    Result* r1,
+    Result* r2,
+    Result* posn_vec1,
+    Result* val_vec1,
+    Result* posn_vec2,
+    Result* val_vec2
+) {
+    Result* inner_result_vec;
+    Result* outer_result_vec;
+    int* inner_val_vec;
+    int* inner_posn_vec;
+    int* outer_val_vec;
+    int* outer_posn_vec;
+    size_t inner_size;
+    size_t outer_size;
+
+    if (posn_vec1->num_tuples > posn_vec2->num_tuples) {
+        inner_result_vec = r2;
+        inner_size = val_vec2->num_tuples;
+        inner_val_vec = (int*) val_vec2->payload;
+        inner_posn_vec = (int*) posn_vec2->payload;
+        outer_result_vec = r1;
+        outer_size = val_vec1->num_tuples;
+        outer_val_vec = (int*) val_vec1->payload;
+        outer_posn_vec = (int*) posn_vec1->payload;
+    } else {
+        inner_result_vec = r1;
+        inner_size = val_vec1->num_tuples;
+        inner_val_vec = (int*) val_vec1->payload;
+        inner_posn_vec = (int*) posn_vec1->payload;
+        outer_result_vec = r2;
+        outer_size = val_vec2->num_tuples;
+        outer_val_vec = (int*) val_vec2->payload;
+        outer_posn_vec = (int*) posn_vec2->payload;
+    }
+
+    HashTable* ht = NULL;
+    ht_allocate(&ht, inner_size);
+    for (size_t i = 0; i < inner_size; i++) {
+        ht_put(ht, inner_val_vec[i], inner_posn_vec[i]);
+    }
+
+    for (size_t i = 0; i < outer_size; i++) {
+        outer_val_vec[i];
+    }
+}
+
+void execute_nested_loop_join(
+    Result* r1,
+    Result* r2,
+    Result* posn_vec1,
+    Result* val_vec1,
+    Result* posn_vec2,
+    Result* val_vec2
+) {
+    Result* inner_result_vec;
+    Result* outer_result_vec;
+    int* inner_val_vec;
+    int* inner_posn_vec;
+    int* outer_val_vec;
+    int* outer_posn_vec;
+    size_t inner_size;
+    size_t outer_size;
+
+    if (posn_vec1->num_tuples > posn_vec2->num_tuples) {
+        inner_result_vec = r2;
+        inner_size = val_vec2->num_tuples;
+        inner_val_vec = (int*) val_vec2->payload;
+        inner_posn_vec = (int*) posn_vec2->payload;
+        outer_result_vec = r1;
+        outer_size = val_vec1->num_tuples;
+        outer_val_vec = (int*) val_vec1->payload;
+        outer_posn_vec = (int*) posn_vec1->payload;
+    } else {
+        inner_result_vec = r1;
+        inner_size = val_vec1->num_tuples;
+        inner_val_vec = (int*) val_vec1->payload;
+        inner_posn_vec = (int*) posn_vec1->payload;
+        outer_result_vec = r2;
+        outer_size = val_vec2->num_tuples;
+        outer_val_vec = (int*) val_vec2->payload;
+        outer_posn_vec = (int*) posn_vec2->payload;
+    }
+
+    for (size_t i = 0; i < outer_size; i++) {
+        for (size_t j = 0; j < inner_size; j++) {
+            if (outer_val_vec[i] == inner_val_vec[j]) {
+                ((int*) outer_result_vec->payload)[outer_result_vec->num_tuples++] = outer_posn_vec[i];
+                ((int*) inner_result_vec->payload)[inner_result_vec->num_tuples++] = inner_posn_vec[j];
+            }
+        }
+    }
+}
+
+void execute_join_operator(Result** r1, Result** r2, JoinOperator* join_operator) {
+    *r1 = (Result*) malloc(sizeof(Result));
+    (*r1)->num_tuples = 0;
+    (*r1)->data_type = INT;
+    (*r1)->payload = (void*) malloc(sizeof(int) * join_operator->val_vec1->num_tuples);
+    *r2 = (Result*) malloc(sizeof(Result));
+    (*r2)->num_tuples = 0;
+    (*r2)->data_type = INT;
+    (*r2)->payload = (void*) malloc(sizeof(int) * join_operator->val_vec2->num_tuples);
+    
+    if (join_operator->type == HASH) {
+        // execute_hash_join(r1, r2, join_operator);
+    } else if (join_operator->type == NESTED_LOOP) {
+        execute_nested_loop_join(*r1, *r2, join_operator->posn_vec1, join_operator->val_vec1, join_operator->posn_vec2, join_operator->val_vec2);
+    }
 }
 
 char* execute_load_operator(LoadOperator* load_operator) {
