@@ -1,6 +1,8 @@
 #ifndef CS165_HASH_TABLE // This is a header guard. It prevents the header from being included more than once.
 #define CS165_HASH_TABLE  
 
+#include <stdbool.h>
+
 typedef int HT_KeyType;
 typedef int HT_ValType;
 
@@ -8,6 +10,7 @@ typedef struct HT_Node {
     HT_KeyType key;
     HT_ValType val;
     struct HT_Node* next;
+    bool checked;
 } HT_Node;
 
 typedef struct HashTable {
@@ -20,7 +23,7 @@ typedef struct HashTable {
 
 int ht_allocate(HashTable** ht, int size);
 int ht_put(HashTable* ht, HT_KeyType key, HT_ValType value);
-int ht_get(HashTable* ht, HT_KeyType key, HT_ValType *values, int num_values, int* num_results);
+int ht_get(HashTable* ht, HT_KeyType key, HT_ValType *values, int num_values, int* num_results, bool* checked);
 int ht_erase(HashTable* ht, HT_KeyType key);
 int ht_deallocate(HashTable* ht);
 int ht_reallocate(HashTable* ht, int size);

@@ -227,8 +227,9 @@ typedef enum ComparatorType {
  */
 typedef struct Result {
     size_t num_tuples;
-    DataType data_type;
+    size_t capacity;
     void *payload;
+    DataType data_type;
 } Result;
 
 /*

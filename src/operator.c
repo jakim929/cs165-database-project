@@ -152,7 +152,6 @@ char* execute_db_operator(DbOperator* query) {
         message_status status = OK_DONE;
         char* query_handle_copy = (char*) malloc(sizeof(char) * (strlen(query->handle) + 1));
         strcpy(query_handle_copy, query->handle);
-        printf("handle!! %s [%d]\n", query->handle, strlen(query->handle));
         char** command_index = &(query_handle_copy);
         char* r1_handle = next_token(command_index, &status);
         char* r2_handle = next_token(command_index, &status);
@@ -469,8 +468,59 @@ Result* execute_sub_operator(SubOperator* sub_operator) {
     return result;
 }
 
-void get_from_hash_table(int** values, int* num_results) {
-    *values = (int*) malloc(*num_results * sizeof(int));
+void add_to_result(Result* result, int val) {
+    if (result->capacity == result->num_tuples) {
+        result->capacity *= 2;
+        result->payload = (void*) realloc(result->payload, sizeof(int) * result->capacity);
+    }
+    ((int*) result->payload)[result->num_tuples++] = val;
+}
+
+void add_to_result_same_val_multiple(Result* result, int val, int n) {
+    if (result->capacity <= result->num_tuples + n) {
+        while (result->capacity <= result->num_tuples + n) {
+            result->capacity *= 2;
+        }
+        result->payload = (void*) realloc(result->payload, sizeof(int) * result->capacity);
+    }
+    for (int k = 0; k < n; k++) {
+        ((int*) result->payload)[result->num_tuples++] = val;
+    }
+}
+
+void add_to_result_many(Result* result, int* val, int val_size) {
+    if (result->capacity <= result->num_tuples + val_size) {
+        while (result->capacity <= result->num_tuples + val_size) {
+            result->capacity *= 2;
+        }
+        result->payload = (void*) realloc(result->payload, sizeof(int) * result->capacity);
+    }
+    memcpy(
+        ((int*) result->payload) + result->num_tuples,
+        val,
+        val_size * sizeof(int)
+    );
+    result->num_tuples += val_size;
+}
+
+Result* initialize_int_result(size_t num_tuples) {
+    Result* res = (Result*) malloc(sizeof(Result));
+    res->num_tuples = 0;
+    res->data_type = INT;
+    res->capacity = num_tuples;
+    res->payload = (void*) malloc(sizeof(int) * res->capacity);
+    return res;
+}
+
+void get_from_hash_table(HashTable* ht, int key, int** values, int* values_size, int* num_results, bool* checked) {
+    bool temp_checked = false;
+    ht_get(ht, key, *values, *values_size, num_results, &temp_checked);
+    *checked = temp_checked;
+    if (*num_results > *values_size) {
+        *values_size = *num_results;
+        *values = (int*) realloc(*values, *values_size * sizeof(int));
+        ht_get(ht, key, *values, *values_size, num_results, &temp_checked);
+    }
 }
 
 void execute_hash_join(
@@ -481,14 +531,14 @@ void execute_hash_join(
     Result* posn_vec2,
     Result* val_vec2
 ) {
-    Result* inner_result_vec;
-    Result* outer_result_vec;
-    int* inner_val_vec;
-    int* inner_posn_vec;
-    int* outer_val_vec;
-    int* outer_posn_vec;
-    size_t inner_size;
-    size_t outer_size;
+    Result* inner_result_vec = NULL;
+    Result* outer_result_vec = NULL;
+    int* inner_val_vec = NULL;
+    int* inner_posn_vec = NULL;
+    int* outer_val_vec = NULL;
+    int* outer_posn_vec = NULL;
+    size_t inner_size = 0;
+    size_t outer_size = 0;
 
     if (posn_vec1->num_tuples > posn_vec2->num_tuples) {
         inner_result_vec = r2;
@@ -516,9 +566,20 @@ void execute_hash_join(
         ht_put(ht, inner_val_vec[i], inner_posn_vec[i]);
     }
 
+    int positions_size = 128;
+    int* positions = (int*) malloc(sizeof(int) * positions_size);
+    int num_results = 0;
+
     for (size_t i = 0; i < outer_size; i++) {
-        outer_val_vec[i];
+        bool checked = false;
+        get_from_hash_table(ht, outer_val_vec[i], &positions, &positions_size, &num_results, &checked);
+        if (num_results > 0) {
+            add_to_result_same_val_multiple(outer_result_vec, outer_posn_vec[i], num_results);
+            add_to_result_many(inner_result_vec, positions, num_results);
+        }
     }
+    ht_deallocate(ht);
+    free(positions);
 }
 
 void execute_nested_loop_join(
@@ -561,28 +622,23 @@ void execute_nested_loop_join(
     for (size_t i = 0; i < outer_size; i++) {
         for (size_t j = 0; j < inner_size; j++) {
             if (outer_val_vec[i] == inner_val_vec[j]) {
-                ((int*) outer_result_vec->payload)[outer_result_vec->num_tuples++] = outer_posn_vec[i];
-                ((int*) inner_result_vec->payload)[inner_result_vec->num_tuples++] = inner_posn_vec[j];
+                add_to_result(outer_result_vec, outer_posn_vec[i]);
+                add_to_result(inner_result_vec, inner_posn_vec[j]);
             }
         }
     }
 }
 
 void execute_join_operator(Result** r1, Result** r2, JoinOperator* join_operator) {
-    *r1 = (Result*) malloc(sizeof(Result));
-    (*r1)->num_tuples = 0;
-    (*r1)->data_type = INT;
-    (*r1)->payload = (void*) malloc(sizeof(int) * join_operator->val_vec1->num_tuples);
-    *r2 = (Result*) malloc(sizeof(Result));
-    (*r2)->num_tuples = 0;
-    (*r2)->data_type = INT;
-    (*r2)->payload = (void*) malloc(sizeof(int) * join_operator->val_vec2->num_tuples);
+    *r1 = initialize_int_result(join_operator->val_vec1->num_tuples);
+    *r2 = initialize_int_result(join_operator->val_vec2->num_tuples);
     
     if (join_operator->type == HASH) {
-        // execute_hash_join(r1, r2, join_operator);
+        execute_hash_join(*r1, *r2, join_operator->posn_vec1, join_operator->val_vec1, join_operator->posn_vec2, join_operator->val_vec2);
     } else if (join_operator->type == NESTED_LOOP) {
         execute_nested_loop_join(*r1, *r2, join_operator->posn_vec1, join_operator->val_vec1, join_operator->posn_vec2, join_operator->val_vec2);
     }
+    printf("result of join r1_size[%zu] r2_size[%zu]\n", (*r1)->num_tuples, (*r2)->num_tuples);
 }
 
 char* execute_load_operator(LoadOperator* load_operator) {

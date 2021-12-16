@@ -17,6 +17,9 @@ int ht_initialize_table(HashTable* ht, int size) {
     ht->total_count = 0;
     ht->slot_count = ht_get_slot_count(size);
     ht->slots = (HT_Node**) malloc(sizeof(HT_Node*) * ht->slot_count);
+    for (int i = 0; i < ht->slot_count; i++) {
+        ht->slots[i] = NULL;
+    }
     return 0;
 }
 
@@ -32,6 +35,7 @@ int ht_put(HashTable* ht, HT_KeyType key, HT_ValType value) {
     new_node->key = key;
     new_node->val = value;
     new_node->next = curr;
+    new_node->checked = false;
     ht->total_count++;
     ht->slots[hashed_index] = new_node;
 
@@ -46,16 +50,20 @@ int ht_put(HashTable* ht, HT_KeyType key, HT_ValType value) {
 // num_values, the caller can invoke this function again (with a larger buffer)
 // to get values that it missed during the first call.
 // This method returns an error code, 0 for success and -1 otherwise (e.g., if the hashtable is not allocated).
-int ht_get(HashTable* ht, HT_KeyType key, HT_ValType *values, int num_values, int* num_results) {
+int ht_get(HashTable* ht, HT_KeyType key, HT_ValType *values, int num_values, int* num_results, bool* checked) {
     int hashed_index = ht_get_slot_index(ht, key);
     HT_Node* curr = (ht->slots)[hashed_index];
     *num_results = 0;
     while(curr) {
         if (curr->key == key) {
+            if (curr->checked == true) {
+                *checked = true;
+            }
             if (*num_results < num_values) {
                 values[*num_results] = curr->val;
             }
             (*num_results)++;
+            curr->checked = true;
         }
         curr = curr->next;
     }
