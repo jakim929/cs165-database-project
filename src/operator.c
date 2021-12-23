@@ -679,7 +679,7 @@ void execute_hash_join(JoinParams* join_params) {
 }
 
 void execute_grace_hash_join(JoinParams* join_params) {
-    printf("EXECUTING GRACE HASH!\n");
+    // printf("EXECUTING GRACE HASH!\n");
     int slot_count = 128;
     HashPartition* inner_hp = hp_initialize((int) join_params->inner_size, slot_count);
     HashPartition* outer_hp = hp_initialize((int) join_params->outer_size, slot_count);
@@ -705,6 +705,51 @@ void execute_grace_hash_join(JoinParams* join_params) {
 
     hp_free(inner_hp);
     hp_free(outer_hp);
+
+
+    // clock_t start, end;
+    // double cpu_time_used;
+
+    // size_t og_inner_size = join_params->inner_size;
+    // size_t og_outer_size = join_params->outer_size;
+
+    // for (size_t q = 1; q <= 100; q++) {
+    //     size_t inner_size = og_inner_size / 100 * q;
+    //     size_t outer_size = og_outer_size / 100 * q;
+
+    //     start = clock();
+        
+    //     int slot_count = 128;
+    //     HashPartition* inner_hp = hp_initialize((int) inner_size, slot_count);
+    //     HashPartition* outer_hp = hp_initialize((int) outer_size, slot_count);
+
+    //     for(size_t i = 0; i < inner_size; i++) {
+    //         hp_put(inner_hp, join_params->inner_val_vec[i], join_params->inner_posn_vec[i]);
+    //     }
+    //     for(size_t i = 0; i < outer_size; i++) {
+    //         hp_put(outer_hp, join_params->outer_val_vec[i], join_params->outer_posn_vec[i]);
+    //     }    
+    //     for (int i = 0; i < slot_count; i++) {
+    //         JoinParams* partition_join_params = (JoinParams*) malloc(sizeof(JoinParams));
+    //         partition_join_params->inner_result_vec = join_params->inner_result_vec;
+    //         partition_join_params->outer_result_vec = join_params->outer_result_vec;
+    //         partition_join_params->inner_posn_vec = inner_hp->slots[i].values;
+    //         partition_join_params->inner_val_vec = inner_hp->slots[i].keys;
+    //         partition_join_params->outer_posn_vec = outer_hp->slots[i].values;
+    //         partition_join_params->outer_val_vec = outer_hp->slots[i].keys;
+    //         partition_join_params->inner_size = inner_hp->slots[i].size;
+    //         partition_join_params->outer_size = outer_hp->slots[i].size;
+    //         execute_hash_join(partition_join_params);
+    //     }
+
+    //     end = clock();
+    //     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    //     printf("%zu,%f\n", inner_size, cpu_time_used);
+
+    //     hp_free(inner_hp);
+    //     hp_free(outer_hp);
+
+    // }
 }
 
 void execute_nested_loop_join(JoinParams* join_params) {
