@@ -6,7 +6,7 @@
 all: client server
 
 # C-compiler settings
-CC = gcc -std=c99 -g -ggdb3 -msse4.2 -mavx2
+CC = gcc -std=c99 -g -ggdb3
 
 # Default optimization level
 O ?= 0
@@ -59,7 +59,7 @@ $(DEPSDIR)/stamp $(BUILDSTAMP):
 client: client.o utils.o
 	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
-server: server.o parse.o utils.o db_manager.o client_context.o catalog.o operator.o batched_operator.o thread_pool.o sort.o table.o column.o column_index.o mmap_helper.o sorted_search.o hash_table.o hash_partition.o simd.o
+server: server.o parse.o utils.o db_manager.o client_context.o catalog.o operator.o batched_operator.o thread_pool.o sort.o table.o column.o column_index.o mmap_helper.o sorted_search.o hash_table.o hash_partition.o
 	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS) -lm
 
 clean:

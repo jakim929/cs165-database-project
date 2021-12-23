@@ -18,7 +18,7 @@
 #include "sorted_search.h"
 #include "hash_table.h"
 #include "hash_partition.h"
-#include "simd.h"
+// #include "simd.h"
 
 char* batch_execute(ClientContext* client_context, BatchedOperator* batched_operator);
 char* execute_load_operator(LoadOperator* load_operator);
@@ -385,11 +385,11 @@ Result* execute_average_operator(AverageOperator* average_operator) {
     clock_t start, end;
     double cpu_time_used;
     start = clock();
-    // for (size_t i = 0; i < size; i++) {
-    //     sum += (long) data[i];
-    // }
+    for (size_t i = 0; i < size; i++) {
+        sum += (long) data[i];
+    }
 
-    sum = simd_sum(data, (int) size);
+    // sum = simd_sum(data, (int) size);
 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;

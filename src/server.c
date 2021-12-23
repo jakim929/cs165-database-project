@@ -24,8 +24,8 @@
 #include <dirent.h>
 #include <time.h>
 
-#include <smmintrin.h>
-#include <immintrin.h>
+// #include <smmintrin.h>
+// #include <immintrin.h>
 
 #include "common.h"
 #include "parse.h"
@@ -179,37 +179,6 @@ int setup_server() {
     // }
 
     // construct_btree(arr, positions, size);
-
-    int size = 10;
-    int* arr = (int*) malloc(sizeof(int) * size);
-
-    int res[8] = { 0, 0 , 0, 0, 0, 0, 0, 0};
-
-    for (int i = 0; i < size; i++) {
-        arr[i] = i + 1;
-    }
-
-    print_arr(arr, size);
-
-    __m256i res_vec = _mm256_loadu_si256((__m256i*) res);
-    int i = 0;
-    for (; i < size - 8; i+=8) {
-        __m256i second_values = _mm256_loadu_si256((__m256i*) &arr[i]);
-        res_vec = _mm256_add_epi32(res_vec, second_values);
-    }
-
-    _mm256_storeu_si256((__m256i*) res, res_vec);
-
-    for (; i < size; i++) {
-        res[i % 8] += arr[i];
-    }
-
-    int sum = 0;
-    for (int k = 0; k < 8; k++) {
-        sum += res[k];
-    }
-
-    printf("sum = %d\n", sum);
 
     log_info("Attempting to setup server...\n");
 
