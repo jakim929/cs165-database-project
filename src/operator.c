@@ -612,6 +612,9 @@ void perform_inner_join() {
 }
 
 void execute_hash_join(JoinParams* join_params) {
+    if (join_params->inner_size == 0 || join_params->outer_size == 0) {
+        return;
+    }
     HashTable* ht = NULL;
     ht_allocate(&ht, join_params->inner_size);
     for (size_t i = 0; i < join_params->inner_size; i++) {
@@ -687,7 +690,6 @@ void execute_grace_hash_join(JoinParams* join_params) {
     for(size_t i = 0; i < join_params->outer_size; i++) {
         hp_put(outer_hp, join_params->outer_val_vec[i], join_params->outer_posn_vec[i]);
     }    
-
     for (int i = 0; i < slot_count; i++) {
         JoinParams* partition_join_params = (JoinParams*) malloc(sizeof(JoinParams));
         partition_join_params->inner_result_vec = join_params->inner_result_vec;

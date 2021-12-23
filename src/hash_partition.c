@@ -24,6 +24,7 @@ HashPartition* hp_initialize(int data_size, int slot_count) {
     hp->slot_count = slot_count;
     hp->slots = (HP_Slot*) malloc(hp->slot_count * sizeof(HP_Slot));
 
+    printf("slot_count %d\n", slot_count);
     int initial_slot_capacity = data_size / slot_count;
     for (int i = 0; i < slot_count; i++) {
         hp->slots[i].capacity = initial_slot_capacity;
