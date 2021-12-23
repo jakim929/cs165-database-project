@@ -45,9 +45,13 @@ SOFTWARE.
 
 #define BTREE_PAGESIZE 128
 
+#define BTREE_FANOUT 3
+
 typedef struct BatchedOperator BatchedOperator;
 typedef struct LoadOperator LoadOperator;
 typedef struct Table Table;
+
+double total_scan_time;
 
 
 /**
@@ -423,6 +427,18 @@ typedef struct JoinOperator {
     JoinType type;
 } JoinOperator;
 
+typedef struct JoinParams {
+    Result* inner_result_vec;
+    Result* outer_result_vec;
+    int* inner_posn_vec;
+    int* inner_val_vec;
+    int* outer_posn_vec;
+    int* outer_val_vec;
+    size_t inner_size;
+    size_t outer_size;
+} JoinParams;
+
+
 /*
  * union type holding the fields of any operator
  */
@@ -508,5 +524,7 @@ char* execute_db_operator(DbOperator* query);
 char* execute_print_operator(PrintOperator* print_operator);
 
 int free_db_operator(DbOperator* dbo);
+
+int free_btree(BTreeNode* node);
 
 #endif /* CS165_H */

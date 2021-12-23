@@ -9,7 +9,7 @@ BTreeIndex* create_btree_index(char* base_directory, char* table_name, char* col
 
 void resize_column_index(ColumnIndex* index, size_t prev_capacity, size_t new_capacity);
 
-BTreeNode* construct_btree(int* sorted_data, int* sorted_positions, size_t size);
+BTreeNode* construct_btree(int* sorted_data, int* sorted_positions_on_original, size_t size, int fanout, int pagesize);
 
 int* search_btree_index(BTreeNode* root_node, int needle);
 

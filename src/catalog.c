@@ -150,7 +150,9 @@ int unpersist_col(Column* col, Table* table, char* column_name, size_t column_si
 			column_index->index_pointer.btree_index->root_node = construct_btree(
 				column_index->index_pointer.btree_index->data,
 				column_index->index_pointer.btree_index->positions,
-				col->size
+				col->size,
+				BTREE_FANOUT,
+				BTREE_PAGESIZE
 			);
 			column_index->index_pointer.btree_index->size = col->size;
 		}

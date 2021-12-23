@@ -24,6 +24,9 @@
 #include <dirent.h>
 #include <time.h>
 
+#include <smmintrin.h>
+#include <immintrin.h>
+
 #include "common.h"
 #include "parse.h"
 #include "cs165_api.h"
@@ -36,6 +39,8 @@
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
 #define CONCURRENT_CLIENTS_SIZE 32
+
+double total_scan_time;
 
 ThreadPool* tpool;
 
@@ -157,18 +162,54 @@ int setup_server() {
     size_t len;
     struct sockaddr_un local;
 
-    size_t size = 300;
-    int* arr = (int*) malloc(sizeof(int) * size);
-    int* positions = (int*) malloc(sizeof(int) * size);
+    total_scan_time = 0.0;
 
-    for (size_t i = 0; i < size; i+=2) {
-        arr[i] = i;
-        arr[i + 1] = i;
-        positions[i] = i;
-        positions[i + 1] = i;
+        printf("sizeoff %zu\n", sizeof(int));
+
+
+    // size_t size = 300;
+    // int* arr = (int*) malloc(sizeof(int) * size);
+    // int* positions = (int*) malloc(sizeof(int) * size);
+
+    // for (size_t i = 0; i < size; i+=2) {
+    //     arr[i] = i;
+    //     arr[i + 1] = i;
+    //     positions[i] = i;
+    //     positions[i + 1] = i;
+    // }
+
+    // construct_btree(arr, positions, size);
+
+    int size = 10;
+    int* arr = (int*) malloc(sizeof(int) * size);
+
+    int res[8] = { 0, 0 , 0, 0, 0, 0, 0, 0};
+
+    for (int i = 0; i < size; i++) {
+        arr[i] = i + 1;
     }
 
-    construct_btree(arr, positions, size);
+    print_arr(arr, size);
+
+    __m256i res_vec = _mm256_loadu_si256((__m256i*) res);
+    int i = 0;
+    for (; i < size - 8; i+=8) {
+        __m256i second_values = _mm256_loadu_si256((__m256i*) &arr[i]);
+        res_vec = _mm256_add_epi32(res_vec, second_values);
+    }
+
+    _mm256_storeu_si256((__m256i*) res, res_vec);
+
+    for (; i < size; i++) {
+        res[i % 8] += arr[i];
+    }
+
+    int sum = 0;
+    for (int k = 0; k < 8; k++) {
+        sum += res[k];
+    }
+
+    printf("sum = %d\n", sum);
 
     log_info("Attempting to setup server...\n");
 
@@ -208,6 +249,8 @@ Status shutdown_server() {
     struct Status ret_status;
     int rflag = free_db(current_db);
     ret_status.code = rflag == 0 ? OK : ERROR;
+    printf("Total scan time took %fms\n", total_scan_time);
+
     return ret_status;
 }
 
@@ -237,7 +280,7 @@ int main(void)
 
     long number_of_processors = sysconf(_SC_NPROCESSORS_ONLN);
     printf("%lu cores found\n", number_of_processors);
-    tpool = initialize_thread_pool(7);
+    tpool = initialize_thread_pool(number_of_processors - 1);
 
     while(!did_shutdown && (client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) != -1) {         
         did_shutdown = handle_client(client_socket);

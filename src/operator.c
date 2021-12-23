@@ -17,6 +17,8 @@
 #include "thread_pool.h"
 #include "sorted_search.h"
 #include "hash_table.h"
+#include "hash_partition.h"
+#include "simd.h"
 
 char* batch_execute(ClientContext* client_context, BatchedOperator* batched_operator);
 char* execute_load_operator(LoadOperator* load_operator);
@@ -261,6 +263,9 @@ void get_payload_from_gcolumn(GeneralizedColumn* gcolumn, int** payload, size_t*
 Result* select_from_column(GeneralizedColumn* gcolumn, NullableInt* range_start, NullableInt* range_end, Status* select_status) {
 	int* data;
     size_t data_size;
+    clock_t start, end;
+    double cpu_time_used;
+
     get_payload_from_gcolumn(gcolumn, &data, &data_size);
 
     Result* result = (Result*) malloc(sizeof(Result));
@@ -279,23 +284,47 @@ Result* select_from_column(GeneralizedColumn* gcolumn, NullableInt* range_start,
                 memcpy(result->payload, sorted_index->positions + start_pos, (end_pos - start_pos + 1) * sizeof(int));
             } else if (index->type == BTREE) {
                 printf("using BTREE_INDEX for SELECT\n");
+
+                // int fanout = 3;
+                // for (int fanout = 100; fanout <= 6000; fanout+=100) {
+                //     BTreeNode* fake = construct_btree(index->index_pointer.btree_index->data, NULL, data_size, 128, fanout);
+                //     index->index_pointer.btree_index->root_node = fake;
+                //     start = clock();
+                //     btree_get_range_of(&start_pos, &end_pos, index->index_pointer.btree_index, data_size, range_start, range_end);
+                //     end = clock();
+                //     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+                //     printf("%d,%f\n", fanout, cpu_time_used);
+                //     free_btree(fake);
+                // }
+
                 BTreeIndex* btree_index = index->index_pointer.btree_index;
                 btree_get_range_of(&start_pos, &end_pos, btree_index, data_size, range_start, range_end);
                 memcpy(result->payload, btree_index->positions + start_pos, (end_pos - start_pos + 1) * sizeof(int));
             }
             result->num_tuples = end_pos - start_pos + 1;
             select_status->code = OK;
+
+
             return result;
         }
     }
 
 	int* posn_vec = (int*) malloc(sizeof(int) * data_size);
+
+
+    start = clock();
+
 	for (size_t i = 0; i < data_size; i++) {
 		// TODO: Try splitting out this if statement?
 		if ((range_start->is_null || data[i] >= range_start->value) && (range_end->is_null || data[i] < range_end->value)) {
             posn_vec[result->num_tuples++] = i;
 		}
 	}
+
+    end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+	printf("individual scan took %fms\n", cpu_time_used);
+    total_scan_time += cpu_time_used;
 
 	result->data_type = INT;
 	result->payload = posn_vec;
@@ -347,6 +376,7 @@ Result* execute_select_operator(SelectOperator* select_operator, Status* select_
     return res;
 }
 
+
 Result* execute_average_operator(AverageOperator* average_operator) {
     size_t size = average_operator->val_vec->num_tuples;
     int* data = (int*) average_operator->val_vec->payload;
@@ -355,12 +385,15 @@ Result* execute_average_operator(AverageOperator* average_operator) {
     clock_t start, end;
     double cpu_time_used;
     start = clock();
-    for (size_t i = 0; i < size; i++) {
-        sum += (long) data[i];
-    }
+    // for (size_t i = 0; i < size; i++) {
+    //     sum += (long) data[i];
+    // }
+
+    sum = simd_sum(data, (int) size);
+
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("summing took %fms\n", cpu_time_used);
+    printf("summing for avg took %fms\n", cpu_time_used);
 
     Result* result = (Result*) malloc(sizeof(Result));
     result->data_type = FLOAT;
@@ -388,10 +421,21 @@ Result* execute_sum_operator(SumOperator* sum_operator) {
         data = (int*) val_vec_col->data;
     }
 
+    clock_t start, end;
+    double cpu_time_used;
+    start = clock();
+
     long sum = 0;
     for (size_t i = 0; i < size; i++) {
         sum += (long) data[i];
     }
+
+    // sum = simd_sum(data, (int) size);
+
+    end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("summing took %fms\n", cpu_time_used);
+
     Result* result = (Result*) malloc(sizeof(Result));
     result->data_type = LONG;
     result->num_tuples = 1;
@@ -438,10 +482,50 @@ Result* execute_add_operator(AddOperator* add_operator) {
 
     int* add_result = (int*) malloc(sizeof(int) * size);
 
+    // for (int i = 0; i < 100; i++) {
+
+    //     size = 10000 * (i + 1);
+
+    //     clock_t start, end;
+    //     double cpu_time_used;
+    //     start = clock();
+
+    //     simd_add(add_result, data1, data2, (int) size);
+        
+    //     // for (size_t i = 0; i < size; i++) {
+    //     //     add_result[i] = data1[i] + data2[i];
+    //     // }
+
+    //     end = clock();
+    //     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    //     printf("%zu,%f,", size, cpu_time_used);
+        
+    //     start = clock();
+        
+    //     for (size_t i = 0; i < size; i++) {
+    //         add_result[i] = data1[i] + data2[i];
+    //     }
+
+    //     end = clock();
+    //     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    //     printf("%f\n", size, cpu_time_used);
+    // }
+
+
+    // clock_t start, end;
+    // double cpu_time_used;
+    // start = clock();
+
+    // simd_add(add_result, data1, data2, (int) size);
+    
     for (size_t i = 0; i < size; i++) {
         add_result[i] = data1[i] + data2[i];
     }
-    
+
+    // end = clock();
+    // cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    // printf("adding took %fms\n", cpu_time_used);
+
     Result* result = (Result*) malloc(sizeof(Result));
     result->data_type = INT;
     result->num_tuples = size;
@@ -523,109 +607,160 @@ void get_from_hash_table(HashTable* ht, int key, int** values, int* values_size,
     }
 }
 
-void execute_hash_join(
-    Result* r1,
-    Result* r2,
-    Result* posn_vec1,
-    Result* val_vec1,
-    Result* posn_vec2,
-    Result* val_vec2
-) {
-    Result* inner_result_vec = NULL;
-    Result* outer_result_vec = NULL;
-    int* inner_val_vec = NULL;
-    int* inner_posn_vec = NULL;
-    int* outer_val_vec = NULL;
-    int* outer_posn_vec = NULL;
-    size_t inner_size = 0;
-    size_t outer_size = 0;
+void perform_inner_join() {
 
-    if (posn_vec1->num_tuples > posn_vec2->num_tuples) {
-        inner_result_vec = r2;
-        inner_size = val_vec2->num_tuples;
-        inner_val_vec = (int*) val_vec2->payload;
-        inner_posn_vec = (int*) posn_vec2->payload;
-        outer_result_vec = r1;
-        outer_size = val_vec1->num_tuples;
-        outer_val_vec = (int*) val_vec1->payload;
-        outer_posn_vec = (int*) posn_vec1->payload;
-    } else {
-        inner_result_vec = r1;
-        inner_size = val_vec1->num_tuples;
-        inner_val_vec = (int*) val_vec1->payload;
-        inner_posn_vec = (int*) posn_vec1->payload;
-        outer_result_vec = r2;
-        outer_size = val_vec2->num_tuples;
-        outer_val_vec = (int*) val_vec2->payload;
-        outer_posn_vec = (int*) posn_vec2->payload;
-    }
+}
 
+void execute_hash_join(JoinParams* join_params) {
     HashTable* ht = NULL;
-    ht_allocate(&ht, inner_size);
-    for (size_t i = 0; i < inner_size; i++) {
-        ht_put(ht, inner_val_vec[i], inner_posn_vec[i]);
+    ht_allocate(&ht, join_params->inner_size);
+    for (size_t i = 0; i < join_params->inner_size; i++) {
+        ht_put(ht, join_params->inner_val_vec[i], join_params->inner_posn_vec[i]);
     }
 
     int positions_size = 128;
     int* positions = (int*) malloc(sizeof(int) * positions_size);
     int num_results = 0;
 
-    for (size_t i = 0; i < outer_size; i++) {
+    for (size_t i = 0; i < join_params->outer_size; i++) {
         bool checked = false;
-        get_from_hash_table(ht, outer_val_vec[i], &positions, &positions_size, &num_results, &checked);
+        get_from_hash_table(ht, join_params->outer_val_vec[i], &positions, &positions_size, &num_results, &checked);
         if (num_results > 0) {
-            add_to_result_same_val_multiple(outer_result_vec, outer_posn_vec[i], num_results);
-            add_to_result_many(inner_result_vec, positions, num_results);
+            add_to_result_same_val_multiple(join_params->outer_result_vec, join_params->outer_posn_vec[i], num_results);
+            add_to_result_many(join_params->inner_result_vec, positions, num_results);
         }
     }
     ht_deallocate(ht);
     free(positions);
+
+    // clock_t start, end;
+    // double cpu_time_used;
+
+    // size_t og_inner_size = inner_size;
+    // size_t og_outer_size = outer_size;
+
+    // for (size_t q = 1; q <= 100; q++) {
+    //     inner_size = og_inner_size / 100 * q;
+    //     outer_size = og_outer_size / 100 * q;
+
+    //     start = clock();
+        
+    //     HashTable* ht = NULL;
+    //     ht_allocate(&ht, inner_size );
+    //     for (size_t i = 0; i < inner_size; i++) {
+    //         ht_put(ht, inner_val_vec[i], inner_posn_vec[i]);
+    //     }
+
+    //     int positions_size = 128;
+    //     int* positions = (int*) malloc(sizeof(int) * positions_size);
+    //     int num_results = 0;
+
+    //     for (size_t i = 0; i < outer_size; i++) {
+    //         bool checked = false;
+    //         get_from_hash_table(ht, outer_val_vec[i], &positions, &positions_size, &num_results, &checked);
+    //         if (num_results > 0) {
+    //             add_to_result_same_val_multiple(outer_result_vec, outer_posn_vec[i], num_results);
+    //             add_to_result_many(inner_result_vec, positions, num_results);
+    //         }
+    //     }
+
+
+    //     end = clock();
+    //     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    //     printf("%zu,%f\n", inner_size, cpu_time_used);
+
+    //     ht_deallocate(ht);
+    //     free(positions);
+    // }
+ 
 }
 
-void execute_nested_loop_join(
-    Result* r1,
-    Result* r2,
-    Result* posn_vec1,
-    Result* val_vec1,
-    Result* posn_vec2,
-    Result* val_vec2
-) {
-    Result* inner_result_vec;
-    Result* outer_result_vec;
-    int* inner_val_vec;
-    int* inner_posn_vec;
-    int* outer_val_vec;
-    int* outer_posn_vec;
-    size_t inner_size;
-    size_t outer_size;
+void execute_grace_hash_join(JoinParams* join_params) {
+    printf("EXECUTING GRACE HASH!\n");
+    int slot_count = 128;
+    HashPartition* inner_hp = hp_initialize((int) join_params->inner_size, slot_count);
+    HashPartition* outer_hp = hp_initialize((int) join_params->outer_size, slot_count);
 
-    if (posn_vec1->num_tuples > posn_vec2->num_tuples) {
-        inner_result_vec = r2;
-        inner_size = val_vec2->num_tuples;
-        inner_val_vec = (int*) val_vec2->payload;
-        inner_posn_vec = (int*) posn_vec2->payload;
-        outer_result_vec = r1;
-        outer_size = val_vec1->num_tuples;
-        outer_val_vec = (int*) val_vec1->payload;
-        outer_posn_vec = (int*) posn_vec1->payload;
-    } else {
-        inner_result_vec = r1;
-        inner_size = val_vec1->num_tuples;
-        inner_val_vec = (int*) val_vec1->payload;
-        inner_posn_vec = (int*) posn_vec1->payload;
-        outer_result_vec = r2;
-        outer_size = val_vec2->num_tuples;
-        outer_val_vec = (int*) val_vec2->payload;
-        outer_posn_vec = (int*) posn_vec2->payload;
+    for(size_t i = 0; i < join_params->inner_size; i++) {
+        hp_put(inner_hp, join_params->inner_val_vec[i], join_params->inner_posn_vec[i]);
+    }
+    for(size_t i = 0; i < join_params->outer_size; i++) {
+        hp_put(outer_hp, join_params->outer_val_vec[i], join_params->outer_posn_vec[i]);
+    }    
+
+    for (int i = 0; i < slot_count; i++) {
+        JoinParams* partition_join_params = (JoinParams*) malloc(sizeof(JoinParams));
+        partition_join_params->inner_result_vec = join_params->inner_result_vec;
+        partition_join_params->outer_result_vec = join_params->outer_result_vec;
+        partition_join_params->inner_posn_vec = inner_hp->slots[i].values;
+        partition_join_params->inner_val_vec = inner_hp->slots[i].keys;
+        partition_join_params->outer_posn_vec = outer_hp->slots[i].values;
+        partition_join_params->outer_val_vec = outer_hp->slots[i].keys;
+        partition_join_params->inner_size = inner_hp->slots[i].size;
+        partition_join_params->outer_size = outer_hp->slots[i].size;
+        execute_hash_join(partition_join_params);
     }
 
-    for (size_t i = 0; i < outer_size; i++) {
-        for (size_t j = 0; j < inner_size; j++) {
-            if (outer_val_vec[i] == inner_val_vec[j]) {
-                add_to_result(outer_result_vec, outer_posn_vec[i]);
-                add_to_result(inner_result_vec, inner_posn_vec[j]);
+    hp_free(inner_hp);
+    hp_free(outer_hp);
+}
+
+void execute_nested_loop_join(JoinParams* join_params) {
+    // size_t og_inner_size = inner_size;
+    // size_t og_outer_size = outer_size;
+
+    // for (size_t q = 1; q <= 100; q++) {
+    //     inner_size = og_inner_size / 100 * q;
+    //     outer_size = og_outer_size / 100 * q;
+
+
+    //     clock_t start, end;
+    //     double cpu_time_used;
+    //     start = clock();
+        
+
+    //     for (size_t i = 0; i < outer_size; i++) {
+    //         for (size_t j = 0; j < inner_size; j++) {
+    //             if (outer_val_vec[i] == inner_val_vec[j]) {
+    //                 add_to_result(outer_result_vec, outer_posn_vec[i]);
+    //                 add_to_result(inner_result_vec, inner_posn_vec[j]);
+    //             }
+    //         }
+    //     }
+    //     end = clock();
+    //     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    //     printf("%zu,%f\n", inner_size, cpu_time_used);
+    // }
+
+    for (size_t i = 0; i < join_params->outer_size; i++) {
+        for (size_t j = 0; j < join_params->inner_size; j++) {
+            if (join_params->outer_val_vec[i] == join_params->inner_val_vec[j]) {
+                add_to_result(join_params->outer_result_vec, join_params->outer_posn_vec[i]);
+                add_to_result(join_params->inner_result_vec, join_params->inner_posn_vec[j]);
             }
         }
+    }
+}
+
+void get_join_params(JoinOperator* join_operator, Result* r1, Result* r2, JoinParams* join_params) {
+    if (join_operator->posn_vec1->num_tuples > join_operator->posn_vec2->num_tuples) {
+        join_params->inner_result_vec = r2;
+        join_params->inner_posn_vec = (int*) join_operator->posn_vec2->payload;
+        join_params->inner_val_vec = (int*) join_operator->val_vec2->payload;
+        join_params->inner_size = join_operator->posn_vec2->num_tuples;
+        join_params->outer_result_vec = r1;
+        join_params->outer_posn_vec = (int*) join_operator->posn_vec1->payload;
+        join_params->outer_val_vec = (int*) join_operator->val_vec1->payload;
+        join_params->outer_size = join_operator->posn_vec1->num_tuples;
+    } else {
+        join_params->inner_result_vec = r1;
+        join_params->inner_posn_vec = (int*) join_operator->posn_vec1->payload;
+        join_params->inner_val_vec = (int*) join_operator->val_vec1->payload;
+        join_params->inner_size = join_operator->posn_vec1->num_tuples;
+        join_params->outer_result_vec = r2;
+        join_params->outer_posn_vec = (int*) join_operator->posn_vec2->payload;
+        join_params->outer_val_vec = (int*) join_operator->val_vec2->payload;
+        join_params->outer_size = join_operator->posn_vec2->num_tuples;
     }
 }
 
@@ -633,10 +768,13 @@ void execute_join_operator(Result** r1, Result** r2, JoinOperator* join_operator
     *r1 = initialize_int_result(join_operator->val_vec1->num_tuples);
     *r2 = initialize_int_result(join_operator->val_vec2->num_tuples);
     
+    JoinParams* join_params = (JoinParams*) malloc(sizeof(JoinParams));
+
+    get_join_params(join_operator, *r1, *r2, join_params);
     if (join_operator->type == HASH) {
-        execute_hash_join(*r1, *r2, join_operator->posn_vec1, join_operator->val_vec1, join_operator->posn_vec2, join_operator->val_vec2);
+        execute_grace_hash_join(join_params);
     } else if (join_operator->type == NESTED_LOOP) {
-        execute_nested_loop_join(*r1, *r2, join_operator->posn_vec1, join_operator->val_vec1, join_operator->posn_vec2, join_operator->val_vec2);
+        execute_nested_loop_join(join_params);
     }
     printf("result of join r1_size[%zu] r2_size[%zu]\n", (*r1)->num_tuples, (*r2)->num_tuples);
 }
@@ -860,6 +998,10 @@ char* execute_batched_select_operator(ClientContext* client_context, BatchedOper
         pthread_mutex_init(&result_mutexes[j], NULL);
     }
 
+    clock_t start, end;
+    double cpu_time_used;
+    start = clock();
+
     int start_position = 0;
     for (int i = 0; i < tpool->num_threads; i++) {
         int divided_chunk_size = column->size / tpool->num_threads + 1;
@@ -879,6 +1021,10 @@ char* execute_batched_select_operator(ClientContext* client_context, BatchedOper
     }
     wait_until_thread_pool_idle(tpool);
 
+	end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+	printf("batched scan took %fms\n", cpu_time_used);
+
     for (int j = 0; j < batched_operator->size; j++) {
         add_result_to_client_context(client_context, results[j], batched_operator->dbos[j]->handle);
     }
@@ -886,7 +1032,7 @@ char* execute_batched_select_operator(ClientContext* client_context, BatchedOper
 	return "";
 }
 
-// each thread runs full scan
+// // each thread runs full scan
 // char* execute_batched_select_operator(ClientContext* client_context, BatchedOperator* batched_operator) {
 //     Column* column = batched_operator->dbos[0]->operator_fields.select_operator.gcolumn->column_pointer.column;
 //     Result** results = (Result**) malloc(sizeof(Result*) * batched_operator->size);
@@ -941,10 +1087,11 @@ char* execute_batched_select_operator_single(ClientContext* client_context, Batc
         results[j]->payload = malloc(sizeof(int) * column->size);
     }
 
-    for (size_t i = 0; i < column->size; i += vector_size) {
-        clock_t start, end;
+       clock_t start, end;
         double cpu_time_used;
         start = clock();
+
+    for (size_t i = 0; i < column->size; i += vector_size) {
         for (size_t j = i; j < i + vector_size; j++) {
             for (int k = 0; k < batched_operator->size; k++) {
                 SelectOperator* select_operator = &(batched_operator->dbos[k]->operator_fields.select_operator);
@@ -961,10 +1108,11 @@ char* execute_batched_select_operator_single(ClientContext* client_context, Batc
                 }
             }
         }
-        end = clock();
-        cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-        printf("one vector_cycle took %fms\n", cpu_time_used);
     }
+
+    end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("single scan took %fms\n", cpu_time_used);
 
     for (int j = 0; j < batched_operator->size; j++) {
         add_result_to_client_context(client_context, results[j], batched_operator->dbos[j]->handle);

@@ -99,9 +99,8 @@ void dedup(int* deduped_data, int* deduped_positions, size_t* deduped_data_size,
 // then divided deduped chunk into pages
 // then construct b-tree from that
 
-void construct_leaf_nodes(BTreeNode*** leaf_nodes, size_t* leaf_node_count, int* deduped_data, int* sorted_data, int* deduped_data_positions, size_t deduped_data_count, int fanout) {
-	printf("construct_leaf_nodes\n");
-	size_t page_count = get_ceil(deduped_data_count, BTREE_PAGESIZE);
+void construct_leaf_nodes(BTreeNode*** leaf_nodes, size_t* leaf_node_count, int* deduped_data, int* sorted_data, int* deduped_data_positions, size_t deduped_data_count, int fanout, int pagesize) {
+	size_t page_count = get_ceil(deduped_data_count, pagesize);
 	*leaf_node_count = get_ceil(page_count, fanout);
 	*leaf_nodes = (BTreeNode**) malloc(sizeof(BTreeNode*) * *leaf_node_count);
 	for(size_t i = 0; i < *leaf_node_count; i++) {
@@ -116,8 +115,8 @@ void construct_leaf_nodes(BTreeNode*** leaf_nodes, size_t* leaf_node_count, int*
 		for(size_t j = 0; j < (size_t) pointers_count; j++) {
 			size_t original_node_id = i * fanout + j;
 			if (original_node_id < page_count) {
-				(*leaf_nodes)[i]->values[j] = deduped_data[original_node_id * BTREE_PAGESIZE];
-				(*leaf_nodes)[i]->pointers[j] = (void*) &sorted_data[deduped_data_positions[original_node_id * BTREE_PAGESIZE]];
+				(*leaf_nodes)[i]->values[j] = deduped_data[original_node_id * pagesize];
+				(*leaf_nodes)[i]->pointers[j] = (void*) &sorted_data[deduped_data_positions[original_node_id * pagesize]];
 				if ((*leaf_nodes)[i]->values[j] != (*(int*) ((*leaf_nodes)[i]->pointers[j]))) {
 					// printf("WRONG!: %d, %d\n", (*leaf_nodes)[i]->values[j], (*(int*) ((*leaf_nodes)[i]->pointers[j])));
 				}
@@ -159,9 +158,8 @@ void construct_inner_nodes(
  	}
 }
 
-BTreeNode* construct_btree(int* sorted_data, int* sorted_positions_on_original, size_t size) {
+BTreeNode* construct_btree(int* sorted_data, int* sorted_positions_on_original, size_t size, int fanout, int pagesize) {
 	total_nodes = 0;
-	int fanout = 3;
 	int* deduped_data = (int*) malloc(sizeof(int*) * size);
 	int* deduped_positions = (int*) malloc(sizeof(int*) * size);
 	size_t deduped_data_size = 0;
@@ -172,14 +170,14 @@ BTreeNode* construct_btree(int* sorted_data, int* sorted_positions_on_original, 
 	}
 	
 	dedup(deduped_data, deduped_positions, &deduped_data_size, sorted_data, sorted_positions, size);
-	printf("dedup result\n");
-	printf("deduped_data_size: %zu\n", deduped_data_size);
+	// printf("dedup result\n");
+	// printf("deduped_data_size: %zu\n", deduped_data_size);
 
 
 	size_t node_count;
 	BTreeNode** nodes;
 
-	construct_leaf_nodes(&nodes, &node_count, deduped_data, sorted_data, deduped_positions, deduped_data_size, fanout);
+	construct_leaf_nodes(&nodes, &node_count, deduped_data, sorted_data, deduped_positions, deduped_data_size, fanout, pagesize);
 
 	// printf("level 0\n");
 	// for (size_t i = 0; i < node_count; i++) {
@@ -212,21 +210,21 @@ BTreeNode* construct_btree(int* sorted_data, int* sorted_positions_on_original, 
 
 	BTreeNode* root_node = temp_nodes[0];
 	free(temp_nodes);
-	printf("finished %d\n", root_node->values[0]);
+	// printf("finished %d\n", root_node->values[0]);
 
 	// Testing a search through
-	int needle = 716;
-	int* res = search_btree_index(root_node, needle);
-	if (res == NULL ) {
-		printf("key not found!\n");
-	} else {
-		printf("result! %d\n", *res);
-	}
+	// int needle = 716;
+	// int* res = search_btree_index(root_node, needle);
+	// if (res == NULL ) {
+	// 	printf("key not found!\n");
+	// } else {
+	// 	printf("result! %d\n", *res);
+	// }
 
 	free(deduped_data);
 	free(deduped_positions);
 
-	printf("TOTAL NODES: %d\n", total_nodes);
+	// printf("TOTAL NODES: %d\n", total_nodes);
 	return root_node;
 }
 
