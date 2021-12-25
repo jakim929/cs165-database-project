@@ -251,6 +251,8 @@ int main(void)
     printf("%lu cores found\n", number_of_processors);
     tpool = initialize_thread_pool(number_of_processors - 1);
 
+    // tpool = initialize_thread_pool(1);
+
     while(!did_shutdown && (client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) != -1) {         
         did_shutdown = handle_client(client_socket);
     }

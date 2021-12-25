@@ -23,15 +23,26 @@ typedef struct ThreadPool_Thread ThreadPool_Thread;
 //     int vector_size;
 // };
 
-struct Task {
+typedef struct SelectTaskParams {
     int* data;
     size_t start_position;
     int num_operators;
     pthread_mutex_t* write_mutexes;
     Result** results;
     SelectOperator** select_operators;
-    Task* next;
     int scan_size;
+} SelectTaskParams;
+
+typedef struct GraceJoinTaskParams {
+    JoinParams* join_params;
+    pthread_mutex_t* inner_result_write_mutex;
+    pthread_mutex_t* outer_result_write_mutex;
+} GraceJoinTaskParams;
+
+struct Task {
+    Task* next;
+    void (*fn)(void* arg);
+    void* arg;
 };
 
 typedef struct TaskQueue {

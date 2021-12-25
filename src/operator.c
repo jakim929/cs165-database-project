@@ -678,6 +678,38 @@ void execute_hash_join(JoinParams* join_params) {
  
 }
 
+void parallel_join_fn(void* arg) {
+    GraceJoinTaskParams* grace_join_task_params = (GraceJoinTaskParams*) arg;
+    JoinParams* join_params = grace_join_task_params->join_params;
+    Result* prev_inner_result = join_params->inner_result_vec;
+    Result* prev_outer_result = join_params->outer_result_vec;
+    
+    join_params->inner_result_vec = initialize_int_result(join_params->inner_size);
+    join_params->outer_result_vec = initialize_int_result(join_params->outer_size);
+
+    execute_hash_join(join_params);
+
+    pthread_mutex_lock(grace_join_task_params->inner_result_write_mutex);
+    add_to_result_many(
+        prev_inner_result,
+        (int*) join_params->inner_result_vec->payload,
+        (int) join_params->inner_result_vec->num_tuples
+    );
+    pthread_mutex_unlock(grace_join_task_params->inner_result_write_mutex);
+
+    pthread_mutex_lock(grace_join_task_params->outer_result_write_mutex);
+    add_to_result_many(
+        prev_outer_result,
+        (int*) join_params->outer_result_vec->payload,
+        (int) join_params->outer_result_vec->num_tuples
+    );
+    pthread_mutex_unlock(grace_join_task_params->outer_result_write_mutex);
+    
+    free(join_params->inner_result_vec);
+    free(join_params->outer_result_vec);
+    free(join_params);
+}
+
 void execute_grace_hash_join(JoinParams* join_params) {
     // printf("EXECUTING GRACE HASH!\n");
     int slot_count = 128;
@@ -689,7 +721,13 @@ void execute_grace_hash_join(JoinParams* join_params) {
     }
     for(size_t i = 0; i < join_params->outer_size; i++) {
         hp_put(outer_hp, join_params->outer_val_vec[i], join_params->outer_posn_vec[i]);
-    }    
+    }
+
+    pthread_mutex_t* inner_result_write_mutex = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(inner_result_write_mutex, NULL);
+    pthread_mutex_t* outer_result_write_mutex = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(outer_result_write_mutex, NULL);
+
     for (int i = 0; i < slot_count; i++) {
         JoinParams* partition_join_params = (JoinParams*) malloc(sizeof(JoinParams));
         partition_join_params->inner_result_vec = join_params->inner_result_vec;
@@ -700,8 +738,24 @@ void execute_grace_hash_join(JoinParams* join_params) {
         partition_join_params->outer_val_vec = outer_hp->slots[i].keys;
         partition_join_params->inner_size = inner_hp->slots[i].size;
         partition_join_params->outer_size = outer_hp->slots[i].size;
-        execute_hash_join(partition_join_params);
+
+        GraceJoinTaskParams* task_params = (GraceJoinTaskParams*) malloc(sizeof(GraceJoinTaskParams));
+        task_params->join_params = partition_join_params;
+        task_params->inner_result_write_mutex = inner_result_write_mutex;
+        task_params->outer_result_write_mutex = outer_result_write_mutex;
+
+        Task* task = (Task*) malloc(sizeof(Task));
+        task->next = NULL;
+        task->arg = (void*) task_params;
+        task->fn = &parallel_join_fn;
+        add_task_to_thread_pool(tpool, task);
+
+
+        // execute_hash_join(partition_join_params);
     }
+
+    wait_until_thread_pool_idle(tpool);
+
 
     hp_free(inner_hp);
     hp_free(outer_hp);
@@ -1029,6 +1083,34 @@ char* execute_print_operator(PrintOperator* print_operator) {
 // 	return "";
 // }
 
+void select_fn(void* task_params) {
+    SelectTaskParams* params = (SelectTaskParams*) task_params;
+    printf("thread: startpos[%zu] num_operators[%d] scan_size[%d]\n", params->start_position, params->num_operators, params->scan_size);
+    int vector_size = 4096;
+    int end_position = params->start_position + params->scan_size;
+    for (int j = params->start_position; j < end_position; j+= vector_size) {
+        int intermediate_vector_size = j + vector_size > end_position ? end_position - j : vector_size;
+        for(int i = j; i < j + intermediate_vector_size; i++) {
+            for (int k = 0; k < params->num_operators; k++) {
+                SelectOperator* select_operator = params->select_operators[k];
+                if (
+                    (
+                        select_operator->range_start.is_null ||
+                        params->data[i] >= select_operator->range_start.value
+                    ) && (
+                        select_operator->range_end.is_null ||
+                        params->data[i] < select_operator->range_end.value
+                    )
+                ) {
+                    pthread_mutex_lock(&params->write_mutexes[k]); 
+                    ((int*) params->results[k]->payload)[params->results[k]->num_tuples++] = i;
+                    pthread_mutex_unlock(&params->write_mutexes[k]); 
+                }
+            }
+        }
+    }
+}
+
 // split column data into n chunks
 char* execute_batched_select_operator(ClientContext* client_context, BatchedOperator* batched_operator) {
     Column* column = batched_operator->dbos[0]->operator_fields.select_operator.gcolumn->column_pointer.column;
@@ -1055,14 +1137,18 @@ char* execute_batched_select_operator(ClientContext* client_context, BatchedOper
         int size_left = column->size - start_position;
         int chunk_size = (size_left) < divided_chunk_size ? size_left : divided_chunk_size;
         Task* task = (Task*) malloc(sizeof(Task));
-        task->data = column->data;
-        task->start_position = start_position;
-        task->num_operators = batched_operator->size;
-        task->write_mutexes = result_mutexes;
-        task->results = results;
-        task->select_operators = select_operators;
+        SelectTaskParams* task_params = (SelectTaskParams*) malloc(sizeof(SelectTaskParams));
+        task_params->data = column->data;
+        task_params->start_position = start_position;
+        task_params->num_operators = batched_operator->size;
+        task_params->write_mutexes = result_mutexes;
+        task_params->results = results;
+        task_params->select_operators = select_operators;
+        task_params->scan_size = chunk_size;
+
         task->next = NULL;
-        task->scan_size = chunk_size;
+        task->arg = (void*) task_params;
+        task->fn = &select_fn;
         add_task_to_thread_pool(tpool, task);
         start_position += chunk_size;
     }
