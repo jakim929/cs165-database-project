@@ -6,7 +6,7 @@
 #include "batched_operator.h"
 #include "cs165_api.h"
 
-#define INITIAL_CHANDLE_CAPACITY 128
+#define INITIAL_CHANDLE_CAPACITY 1024
 #define INITIAL_LOAD_DATA_CHUNK_SIZE 8192
 
 ClientContext* initialize_client_context() {
